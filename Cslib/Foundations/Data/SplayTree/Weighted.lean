@@ -133,6 +133,9 @@ lemma size_Frame_attach (s : Tree α) (f : Frame α) :
   simp [Frame.attach]
   cases f.dir; all_goals simp; linarith
 
+@[simp] lemma size_splay [LinearOrder α] (s : Tree α) (q : α) : size w (splay s q) = size w s := by
+  rw [size_from_toKeyList, size_from_toKeyList]; rw [toKeyList_splay]
+
 @[simp] lemma rank_empty : rank w (.nil : Tree α) = 0 :=
   by simp [rank]
 
@@ -187,7 +190,7 @@ lemma rank_eq_of_toKeyList_eq {s t : Tree α}
     have : t ≠ nil := by contrapose this; rw [this]; exact toKeyList_empty
     simp only; rw [size_from_toKeyList, size_from_toKeyList, h]
 
-@[simp] lemma rank_splay [LinearOrder α] (t : Tree α) (q : α) :
+@[simp] lemma rank_splay [LinearOrder α] (w : α → ℝ) (t : Tree α) (q : α) :
     rank w (splay t q) = rank w t :=
   rank_eq_of_toKeyList_eq (toKeyList_splay t q)
 
@@ -298,7 +301,7 @@ private theorem φ_zigzig_left (hw : WeightFunc w)
   -- Total rank stays the same
   have : rank w s = rank w s' := by
     apply rank_eq_of_toKeyList_eq
-    unfold s'; simp [toKeyList_rotateRight]
+    unfold s'; simp only [toKeyList_rotateRight]
   -- The calculation
   --have : φ w s' - φ w s = rank w (node b t2 x') + rank w x' - rank w (node b x t3) - rank w x := by
   --  linarith
@@ -494,57 +497,148 @@ theorem splay_access_lemma [LinearOrder α]
     φ w (splay t q) - φ w t + splay.cost t q ≤
       3 * Real.logb 2 ( (size w t) / w q ) + 1 := by
   rcases hdecomp : descend t q with ⟨reached, path⟩
-  have : reached ≠ nil := by
+  have : ∃ l r, (descend t q).1 = node q l r := descend_contains' t q hbst hq
+  have hreached : ∃ l r, reached = node q l r := by simp_all only
   have hpres := descend_preserves_tree t q
   rw [hdecomp] at hpres; simp only at hpres
+  rcases hreached with ⟨l,r,hreached⟩
   have h_splay : splay t q = splayUp reached path ∨
       (∃ f rest, reached = .nil ∧
         path = f :: rest ∧
         splay t q = splayUp (f.attach .nil) rest) := by
     simp only [splay, hdecomp]
-    rcases reached with _ | ⟨k, l, r⟩
-    · rcases path with _ | ⟨f, rest⟩
-      · left; rfl
-      · right; exact ⟨f, rest, rfl, rfl, rfl⟩
-    · left; rfl
-  rcases reached with _ | ⟨k, l, r⟩
-  · rcases path with _ | ⟨f, rest⟩
-    · simp only [reassemble, List.foldl_nil] at hpres
-      subst hpres
-      simp [splay, splay.cost, hdecomp, φ]
-    · have h_cost : splay.cost t q = rest.length := by simp [splay.cost, hdecomp]
-      rw [h_cost]
-      have h_eq : splay t q = splayUp (f.attach .nil) rest := by simp [splay, hdecomp]
-      rw [h_eq]
-      set base := f.attach (.nil : Tree α)
-      have hpres' : reassemble base rest = t := by rw [← hpres]; simp [reassemble, base]
-      have hφ := φ_splayUp base rest
-      rw [hpres'] at hφ
-      have hrank_eq : rank (splayUp base rest) = rank t := by
-        have h := rank_splay t q; simp only [splay, hdecomp] at h; exact h
-      have hnn : t.nodeCount ≠ 0 :=
-        nodeCount_pos_of_descend_nonempty_path hdecomp (List.cons_ne_nil f rest)
-      calc φ (splayUp base rest) - φ t + ↑rest.length
-          ≤ 3 * (rank (splayUp base rest) - rank base) + 1 := by exact_mod_cast hφ
-        _ ≤ 3 * rank (splayUp base rest) + 1 := by linarith [rank_nonneg base]
-        _ = 3 * Real.logb 2 t.nodeCount + 1 := by rw [hrank_eq, rank_eq_logb hnn]
-  · have h_cost : splay.cost t q = path.length := by simp [splay.cost, hdecomp]
-    rw [h_cost]
-    have h_eq : splay t q = splayUp (l △[k] r) path := by simp [splay, hdecomp]
-    rw [h_eq]
-    have hφ := φ_splayUp (l △[k] r) path
-    rw [hpres] at hφ
-    have hrank_eq : rank (splayUp (l △[k] r) path) = rank t := by
-      have h := rank_splay t q; simp only [splay, hdecomp] at h; exact h
-    have hnn : t.nodeCount ≠ 0 := by
-      have hd := nodeCount_descend t q; rw [hdecomp] at hd; simp at hd; omega
-    calc φ (splayUp (l △[k] r) path) - φ t + ↑path.length
-        ≤ 3 * (rank (splayUp (l △[k] r) path) - rank (l △[k] r)) + 1 := by exact_mod_cast hφ
-      _ ≤ 3 * rank (splayUp (l △[k] r) path) + 1 := by linarith [rank_nonneg (l △[k] r)]
-      _ = 3 * Real.logb 2 t.nodeCount + 1 := by rw [hrank_eq, rank_eq_logb hnn]
+    rw [hreached]; simp
+  have h_cost : splay.cost t q = path.length := by simp [splay.cost, hdecomp, hreached]
+  rw [h_cost]
+  have h_eq : splay t q = splayUp (l △[q] r) path := by simp [splay, hdecomp, hreached]
+  rw [h_eq]
+  have hφ := φ_splayUp hw (l △[q] r) (by simp) path
+  rw [←hreached, hpres, hreached] at hφ
+  have hrank_eq : rank w (splayUp (l △[q] r) path) = rank w t := by
+    have h := rank_splay w t q; simp only [splay, hdecomp, hreached] at h; exact h
+  have htnn : t ≠ nil := nonnil_of_mem q hq
+  calc φ w (splayUp (l △[q] r) path) - φ w t + ↑path.length
+      ≤ 3 * (rank w (splayUp (l △[q] r) path) - rank w (l △[q] r)) + 1 := by exact_mod_cast hφ
+    _ ≤ 3 * (rank w t - rank w (l △[q] r)) + 1 := by simp [hrank_eq]
+    _ ≤ 3 * ( Real.logb 2 ( size w t ) - rank w (l △[q] r)) + 1 := by simp [rank]
+    _ ≤ 3 * ( Real.logb 2 ( size w t ) - Real.logb 2 (w q)) + 1 := by
+      have : Real.logb 2 (w q) ≤ rank w (l △[q] r) := by
+        simp only [rank, size_node]; apply logb_mono (by linarith [hw q])
+        linarith [size_nonneg hw l, size_nonneg hw r]
+      linarith
+    _ ≤ 3 * Real.logb 2 ( (size w t) / w q ) + 1 := by
+      have hsizepos: size w t ≠ 0 := by linarith [size_pos_of_non_nil hw t htnn]
+      have hwqpos: w q ≠ 0 := by linarith [hw q]
+      simp [Real.logb_div hsizepos hwqpos]
 
 
 end WeightedPotentialMethod
+
+
+/-! ### Entropy bound -/
+section EntropyBound
+
+variable {w : α → ℝ}
+
+/-! #### Sequence cost with fixed weight function -/
+
+theorem total_cost_bound {S : Type*} (m : ℕ)
+    (s : Fin (m + 1) → S) (cost : Fin m → ℝ)
+    (Φ : S → ℝ) (B : Fin m → ℝ)
+    (hamort : ∀ i : Fin m,
+      Φ (s i.succ) - Φ (s i.castSucc) + cost i ≤ B i) :
+    ∑ i : Fin m, cost i ≤
+      ∑ i : Fin m, (B i) + Φ (s 0) - Φ (s (Fin.last m)) := by
+  have := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) =>
+    hamort i
+  simp_all +decide only [Finset.sum_add_distrib, Finset.sum_sub_distrib, ge_iff_le]
+  linarith! [Fin.sum_univ_castSucc fun i => Φ (s i),
+    Fin.sum_univ_succ fun i => Φ (s i)]
+
+theorem total_cost_bound' {S : Type*} (m : ℕ)
+    (s : Fin (m + 1) → S) (cost : Fin m → ℝ)
+    (Φ : S → ℝ) (B : Fin m → ℝ)
+    (hamort : ∀ i : Fin m,
+      Φ (s i.succ) - Φ (s i.castSucc) + cost i ≤ B i)
+    (hΦ_nonneg : ∀ x, 0 ≤ Φ x) :
+    ∑ i : Fin m, cost i ≤ ∑ i : Fin m, (B i) + Φ (s 0) := by
+  linarith [total_cost_bound m s cost Φ B hamort,
+    hΦ_nonneg (s (Fin.last m))]
+
+theorem splay_total_weighted_cost [LinearOrder α]
+    (hw : WeightFunc w)
+    (m : ℕ)
+    (t : Fin (m + 1) → Tree α)
+    (q : Fin m → α)
+    (hseq : ∀ i : Fin m, t i.succ = splay (t i.castSucc) (q i))
+    (hbst : (t 0).IsBST)
+    (hcont : ∀ i : Fin m, (q i) ∈ (t 0))
+    :
+    ∑ i : Fin m, (splay.cost (t i.castSucc) (q i) : ℝ) ≤
+    ∑ i : Fin m, (3 * Real.logb 2 ( size w (t 0) / w (q i) ) + 1) + φ w (t 0) := by
+  cases m with
+  | zero => simp [φ_nonneg hw]
+  | succ m' =>
+    let m := m'+1
+    let B := fun i => (3 * Real.logb 2 ( size w (t 0) / w (q i) ) + 1)
+    have hbst' : ∀ i : Fin (m+1), (t i).IsBST := by
+      intro i
+      induction i using Fin.induction with
+      | zero => exact hbst
+      | succ i ih => rw [hseq i]; apply IsBST_splay; exact ih
+    have hcont' : ∀ (i : Fin m) (j : Fin (m+1)), (q i) ∈ (t j) := by
+      intro i j
+      induction j using Fin.induction with
+      | zero => apply hcont
+      | succ j jh =>
+        rw [hseq j]
+        apply mem_iff_mem_toKeyList.mpr; simp only [toKeyList_splay]; apply mem_iff_mem_toKeyList.mp
+        exact jh
+    have hnn' : ∀ i : Fin (m+1), (t i) ≠ nil := by
+      intro i; exact nonnil_of_mem (q 0) (hcont' 0 i)
+    have hsize : ∀ i : Fin (m+1), size w (t i) = size w (t 0) := by
+      intro i
+      induction i using Fin.induction with
+      | zero => rfl
+      | succ i ih => rw [hseq, size_splay]; exact ih
+    apply total_cost_bound' m t
+      (fun i => (splay.cost (t i.castSucc) (q i) : ℝ)) (φ w) B
+    · intro i
+      rw [hseq i]
+      have hb := splay_access_lemma hw (t i.castSucc) (q i) (hbst' i.castSucc) (hcont' i i.castSucc)
+      calc φ w (splay (t i.castSucc) (q i)) - φ w (t i.castSucc) +
+            splay.cost (t i.castSucc) (q i)
+        ≤ 3 * Real.logb 2 (size w (t i.castSucc) / w (q i)) + 1 := hb
+      _ ≤ 3 * Real.logb 2 (size w (t 0) / w (q i)) + 1 := by rw[hsize i.castSucc]
+    · exact fun x => φ_nonneg hw x
+
+def freqCost (freq : ℕ) (m : ℕ) :=
+  match freq with
+  | .zero => 0
+  | .succ i => m / (i+1)
+
+noncomputable def entropy [Fintype α] (X : Fin m → α) :=
+  ∑ x, freqCost (X ⁻¹' {x}).ncard m
+
+noncomputable def entropy_weight [Fintype α] (X : Fin m → α) (x : α) :=
+  (m : ℝ) / (X ⁻¹' {x}).ncard
+
+lemma entropy_weight_ge_one [Fintype α] (X : Fin m → α) (x : α) : entropy_weight X x ≥ 1 := by
+  simp [entropy_weight]; sorry -- TODO: cardinalities of (x : Set (Fin m)) ≤ m
+
+-- TODO: Without FinType, using init.toKeyList in the statement?
+theorem entropy_bound [LinearOrder α] [Fintype α]
+    (X : Fin m → α)
+    (init : Tree α) (hbst : init.IsBST)
+    (hcont : ∀ i : Fin m, (X i) ∈ init) :
+    let n := init.nodeCount
+    splay.sequenceCost init X ≤ n * Real.logb 2 n + entropy X := binary
+  have hw : WeightFunc (entropy_weight X) := entropy_weight_ge_one X
+  have h_amortized := splay_total_weighted_cost hw m (splaySeq init X) X (splaySeq_succ init X)
+    (by simp [splaySeq]; exact hbst) (by simp [splaySeq]; exact hcont)
+  sorry
+
+end EntropyBound
 
 end Weighted
 

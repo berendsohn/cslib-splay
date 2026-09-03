@@ -363,20 +363,6 @@ lemma toKeyList_reassemble_samerest (c d : Tree α) (path : List (Frame α))
   rw [toKeyList_reassemble]; rw [toKeyList_reassemble]
   simp_all
 
-@[simp]
-theorem toKeyList_splayUp (c : Tree α) (path : List (Frame α)) :
-    (splayUp c path).toKeyList = (reassemble c path).toKeyList := by
-  --induction path generalizing c with
-  induction path using List.twoStepInduction generalizing c with
-  | nil => simp [splayUp]
-  | singleton f => simp [splayUp]
-  | cons_cons f1 f2 rest ih _ =>
-    unfold splayUp
-    split_ifs with h
-    · rw [ih]; apply toKeyList_reassemble_samerest; simp only [toKeyList_bringUp]
-    · rw [ih]; apply toKeyList_reassemble_samerest
-      simp only [toKeyList_bringUp, implies_true, toKeyList_applyChild]
-
 theorem reassemble_descend_go [LinearOrder α] (t : Tree α) (q : α) (acc : List (Frame α)) :
     let r := descend.go q t acc
     reassemble r.1 r.2 = reassemble t acc := by
@@ -393,24 +379,6 @@ theorem reassemble_descend [LinearOrder α] (t : Tree α) (q : α) :
     reassemble (descend t q).1 (descend t q).2 = t := by
   have := reassemble_descend_go t q []
   simpa [descend] using this
-
-/-- Splaying does not change the key list. -/
-@[simp]
-theorem toKeyList_splay [LinearOrder α] (t : Tree α) (q : α) :
-    (splay t q).toKeyList = t.toKeyList := by
-  unfold splay
-  have hd := reassemble_descend t q
-  match h : descend t q with
-  | (.nil, []) =>
-      rw [h] at hd
-      simp at hd
-      simp [hd]
-  | (.nil, f :: rest) =>
-      rw [h] at hd
-      simp only [reassemble_cons, toKeyList_splayUp] at hd ⊢; rw [hd]
-  | (.node k l r, path) =>
-      rw [h] at hd
-      simp only [toKeyList_splayUp]; rw [hd]
 
 end ToKeyListReassemble
 

@@ -387,6 +387,10 @@ theorem gt_of_IsBST_right [LinearOrder α] (l : Tree α) (k : α) (r : Tree α) 
   simp only [IsBST_node] at hbst; rcases hbst with ⟨_,hr⟩
   exact IsBSTAux.gt_of_mem_lb hr hqr
 
+theorem nonnil_of_mem {t : Tree α} (q : α) (hq : q ∈ t) : (t ≠ nil) := by
+  by_contra
+  have : q ∉ t := by rw[this]; exact not_mem_nil q
+  contradiction
 
 end BSTMembership
 
