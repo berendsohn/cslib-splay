@@ -54,6 +54,12 @@ def toKeyList : Tree α → List α
 @[simp] lemma toKeyList_node (l : Tree α) (k : α) (r : Tree α) :
     (l △[k] r).toKeyList = l.toKeyList ++ [k] ++ r.toKeyList := rfl
 
+lemma toKeyList_of_empty {t : Tree α} (h : toKeyList t = []) : (t = nil) := by
+  cases t
+  · simp
+  · simp [List.append_assoc] at h
+
+
 /-- Number of nodes on the search path for `q` in `t`. Zero on the empty
 tree; on a node this counts the root plus (if `q ≠ k`) the search path
 length in the appropriate subtree. -/
@@ -185,6 +191,9 @@ def mirror : Tree α → Tree α
 @[simp] lemma nodeCount_mirror (t : Tree α) : t.mirror.nodeCount = t.nodeCount := by
   induction t <;> simp_all [nodeCount]; omega
 
+@[simp] lemma toKeyList_mirror (t : Tree α) : t.mirror.toKeyList = t.toKeyList.reverse := by
+  induction t <;> simp_all [toKeyList]
+
 @[simp] lemma mirror_rotateRight (t : Tree α) :
     (rotateRight t).mirror = rotateLeft t.mirror := by
   rcases t with _ | ⟨k, (_ | ⟨lk, ll, lr⟩), r⟩ <;>
@@ -195,6 +204,7 @@ def mirror : Tree α → Tree α
   rcases t with _ | ⟨k, l, (_ | ⟨rk, rl, rr⟩)⟩ <;>
     simp [rotateRight, rotateLeft, mirror]
 
+-- TODO: The nodeCount stuff can probably be derived from the toKeyList stuff directly.
 @[simp] theorem nodeCount_rotateRight (t : Tree α) :
     (rotateRight t).nodeCount = t.nodeCount := by
   rcases t with _ | ⟨k, (_ | ⟨lk, ll, lr⟩), r⟩ <;>
@@ -204,6 +214,17 @@ def mirror : Tree α → Tree α
     (rotateLeft t).nodeCount = t.nodeCount := by
   have h := nodeCount_rotateRight t.mirror
   simp only [← mirror_rotateLeft, nodeCount_mirror] at h; exact h
+
+@[simp] theorem toKeyList_rotateRight (t : Tree α) :
+    (rotateRight t).toKeyList = t.toKeyList := by
+  rcases t with _ | ⟨k, (_ | ⟨lk, ll, lr⟩), r⟩ <;>
+    simp [rotateRight]
+
+@[simp] theorem toKeyList_rotateLeft (t : Tree α) :
+    (rotateLeft t).toKeyList = t.toKeyList := by
+  have h := toKeyList_rotateRight t.mirror
+  simp only [← mirror_rotateLeft, toKeyList_mirror] at h
+  apply List.reverse_inj.mp; exact h
 
 end Transformations
 
@@ -273,6 +294,30 @@ section IsBSTAccessors
     IsBST (l △[k] r) ↔ IsBSTAux l none (some k) ∧ IsBSTAux r (some k) none := by
   simp [IsBST, IsBSTAux_node]
 
+private lemma IsBSTAux_children_none [LinearOrder α] (t : Tree α) (x y : Option α)
+    (h : IsBSTAux t x y) : IsBSTAux t none y ∧ IsBSTAux t x none ∧ IsBSTAux t none none := by
+  induction t generalizing x y with
+  | nil => simp
+  | node k l r lih rih =>
+    simp only [IsBSTAux_node] at h
+    rcases h with ⟨_, _, h1, h2⟩
+    rcases lih x (some k) h1 with ⟨_,_,_⟩
+    rcases rih (some k) y h2 with ⟨_,_,_⟩
+    simp only [IsBSTAux_node, Option.elim_none, true_and]; split_ands; all_goals assumption
+
+private lemma IsBST_of_IsBSTAux [LinearOrder α] (t : Tree α) (x y : Option α)
+    (h : IsBSTAux t x y) : IsBST t := by
+  unfold IsBST; rcases IsBSTAux_children_none t x y h with ⟨_,_,_⟩; assumption
+
+theorem IsBST_left_of_ISBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
+    (hbst : IsBST (l △[k] r)) : IsBST l := by
+  simp only [IsBST, IsBSTAux_node, Option.elim_none, true_and] at hbst; rcases hbst with ⟨hl,_⟩
+  exact IsBST_of_IsBSTAux l none (some k) hl
+
+theorem IsBST_right_of_ISBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
+    (hbst : IsBST (l △[k] r)) : IsBST r := by
+  simp only [IsBST, IsBSTAux_node, Option.elim_none, true_and] at hbst; rcases hbst with ⟨_,hr⟩
+  exact IsBST_of_IsBSTAux r (some k) none hr
 end IsBSTAccessors
 
 
@@ -330,6 +375,18 @@ theorem mem_imp_contains [LinearOrder α] {t : Tree α} (hbst : IsBST t)
 theorem contains_iff_mem [LinearOrder α] {t : Tree α} (hbst : IsBST t) {q : α} :
     t.bstContains q ↔ q ∈ t :=
   ⟨contains_imp_mem, mem_imp_contains hbst⟩
+
+
+theorem lt_of_IsBST_left [LinearOrder α] (l : Tree α) (k : α) (r : Tree α) (q : α)
+    (hbst : IsBST (l △[k] r)) (hql : q ∈ l) : q < k := by
+  simp only [IsBST_node] at hbst; rcases hbst with ⟨hl,_⟩
+  exact IsBSTAux.lt_of_mem_ub hl hql
+
+theorem gt_of_IsBST_right [LinearOrder α] (l : Tree α) (k : α) (r : Tree α) (q : α)
+    (hbst : IsBST (l △[k] r)) (hqr : q ∈ r) : k < q := by
+  simp only [IsBST_node] at hbst; rcases hbst with ⟨_,hr⟩
+  exact IsBSTAux.gt_of_mem_lb hr hqr
+
 
 end BSTMembership
 

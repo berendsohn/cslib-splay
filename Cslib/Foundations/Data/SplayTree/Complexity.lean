@@ -190,23 +190,23 @@ private lemma φ_transfer_mirror
       3 * (rank step' - rank c.mirror)) :
     φ step - φ s + 2 ≤ 3 * (rank step - rank c) := by
   rw [← hstep, φ_mirror, rank_mirror] at h
-  rw [← hs, φ_mirror] at h
-  linarith [rank_mirror c]
+  rw [← hs, φ_mirror, rank_mirror c] at h
+  assumption
 
 /-! #### Short‐hands for `logb 2` arithmetic (used in zig‐zig / zig‐zag) -/
 
 /-- Monotonicity of `logb 2`. -/
-private lemma logb_mono {a b : ℝ} (ha : 0 < a) (hab : a ≤ b) :
+lemma logb_mono {a b : ℝ} (ha : 0 < a) (hab : a ≤ b) :
     Real.logb 2 a ≤ Real.logb 2 b :=
   Real.logb_le_logb_of_le (by norm_num) ha hab
 
 /-- Non‐negativity of `logb 2 x` when `x ≥ 1`. -/
-private lemma logb_nonneg {x : ℝ} (hx : 1 ≤ x) :
+lemma logb_nonneg {x : ℝ} (hx : 1 ≤ x) :
     0 ≤ Real.logb 2 x :=
   Real.logb_nonneg (by norm_num) hx
 
 /-- `logb 2 x ≥ 1` when `x ≥ 2`. -/
-private lemma one_le_logb {x : ℝ} (hx : 2 ≤ x) :
+lemma one_le_logb {x : ℝ} (hx : 2 ≤ x) :
     1 ≤ Real.logb 2 x := by
   rwa [Real.le_logb_iff_rpow_le (by norm_num : (1 : ℝ) < 2) (by linarith),
     show (2 : ℝ) ^ (1 : ℝ) = 2 from by norm_num]

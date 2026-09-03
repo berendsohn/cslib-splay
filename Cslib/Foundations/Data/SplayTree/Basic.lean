@@ -52,6 +52,9 @@ def Dir.bringUp : Dir → Tree α → Tree α
   | .L => rotateRight
   | .R => rotateLeft
 
+lemma Dir.bringUp_ne_nil_of_ne_nil (d : Dir) (t : Tree α) (ht : t ≠ nil) : d.bringUp t ≠ nil := by
+  cases d <;> all_goals simp only [Dir.bringUp, rotateLeft, rotateRight]; split; simp; apply ht
+
 /-- Apply `op` to the `d`-child of the root, leaving everything else fixed. -/
 def applyChild (d : Dir) (op : Tree α → Tree α) : Tree α → Tree α
   | l △[k] r =>
@@ -59,6 +62,12 @@ def applyChild (d : Dir) (op : Tree α → Tree α) : Tree α → Tree α
     | .L => (op l) △[k] r
     | .R => l △[k] (op r)
   | .nil => .nil
+
+lemma Dir.applyChild_ne_nil_of_ne_nil (d : Dir) (op : Tree α → Tree α) (t : Tree α) (ht : t ≠ nil) :
+    applyChild d op t ≠ nil := by
+  unfold applyChild; split
+  · split; all_goals simp
+  · contradiction
 
 /-- One frame of the search path: the direction we took from this ancestor,
 its key, and the subtree we did *not* descend into. -/
@@ -99,6 +108,9 @@ def Frame.flip (f : Frame α) : Frame α :=
       simp only [applyChild, Dir.flip, Dir.bringUp,
         mirror_node] <;> congr 1 <;>
       first | exact mirror_rotateRight _ | exact mirror_rotateLeft _
+
+lemma Frame.attach_ne_nil (c : Tree α) (f : Frame α) : f.attach c ≠ nil := by
+  simp [attach]; cases f.dir; all_goals simp
 
 /-- Descend from `t` toward `q`, returning the subtree reached (either the
 matching node or `.nil` if `q` is absent) and the path above it. The head
@@ -167,10 +179,18 @@ end Definitions
 /-! ### Unfolding and Induction Lemmas for `splayUp` -/
 section SplayUpInduction
 
+-- TODO: Should this be called splayUp_empty?
 @[simp] theorem splayUp_nil (c : Tree α) : splayUp c [] = c := rfl
 
 @[simp] theorem splayUp_singleton (c : Tree α) (f : Frame α) :
     splayUp c [f] = f.dir.bringUp (f.attach c) := rfl
+
+@[simp] theorem splayUp_niltree (f1 f2 : Frame α) (path : List (Frame α)) :
+    let s := f2.attach (f1.attach nil)
+    let s' := f2.dir.bringUp s
+    splayUp nil (f1 :: f2 :: path) = splayUp s' path := by
+  simp [splayUp, Frame.attach]; cases f1.dir <;> cases f2.dir <;>
+  all_goals simp [Dir.bringUp, applyChild, rotateLeft, rotateRight]
 
 theorem splayUp_cons_cons (c : Tree α) (f1 f2 : Frame α) (rest : List (Frame α)) :
     splayUp c (f1 :: f2 :: rest) =
@@ -254,8 +274,8 @@ theorem nodeCount_splayUp (c : Tree α) (path : List (Frame α)) :
   | cons_cons f1 f2 rest ih _ =>
     unfold splayUp
     split_ifs with h
-    · rw [ih]; simp [Frame.nodes, pathNodes_cons]; omega
-    · rw [ih]; simp [Frame.nodes, pathNodes_cons]; omega
+    · rw [ih]; simp [pathNodes]; omega
+    · rw [ih]; simp [pathNodes]; omega
 
 theorem nodeCount_descend_go [LinearOrder α] (t : Tree α) (q : α) (acc : List (Frame α)) :
     let r := descend.go q t acc
@@ -297,6 +317,102 @@ theorem nodeCount_splay [LinearOrder α] (t : Tree α) (q : α) :
       omega
 
 end NodeCount
+
+/-! ### ToKeyList and Reassemble Invariants -/
+-- TODO: Mostly copies of nodeCount stuff, can probably replace it mostly
+section ToKeyListReassemble
+
+@[simp]
+theorem toKeyList_Frame_attach_left (c : Tree α) (f : Frame α) (h : f.dir = Dir.L) :
+    (f.attach c).toKeyList = c.toKeyList ++ [f.key] ++ f.sibling.toKeyList := by
+  unfold Frame.attach
+  simp [h]
+
+@[simp]
+theorem toKeyList_Frame_attach_right (c : Tree α) (f : Frame α) (h : f.dir = Dir.R) :
+    (f.attach c).toKeyList = f.sibling.toKeyList ++ [f.key] ++ c.toKeyList := by
+  unfold Frame.attach
+  simp [h]
+
+-- TODO: Move?
+/-- An explicit definition for (reassemble ...).toKeyList, proven to be equivalent below. -/
+@[simp]
+def reassembleKeyList (clist : List α) (path : List (Frame α)) : List α :=
+  match path with
+    | .nil => clist
+    | f :: rest => match f.dir with
+      | Dir.L => reassembleKeyList (clist ++ [f.key] ++ f.sibling.toKeyList) rest
+      | Dir.R => reassembleKeyList (f.sibling.toKeyList ++ [f.key] ++ clist) rest
+
+lemma toKeyList_reassemble (c : Tree α) (path : List (Frame α)) :
+  (reassemble c path).toKeyList = reassembleKeyList c.toKeyList path := by
+  induction path generalizing c with
+  | nil => simp
+  | cons f rest =>
+    expose_names
+    simp only [reassemble_cons, reassembleKeyList, List.append_assoc, List.cons_append,
+      List.nil_append]
+    rw [tail_ih]
+    cases h : f.dir
+    · rw [toKeyList_Frame_attach_left c f h]; rw [← List.append_cons]
+    · rw [toKeyList_Frame_attach_right c f h]; rw [← List.append_cons]
+
+lemma toKeyList_reassemble_samerest (c d : Tree α) (path : List (Frame α))
+  (h : c.toKeyList = d.toKeyList) :
+  (reassemble c path).toKeyList = (reassemble d path).toKeyList := by
+  rw [toKeyList_reassemble]; rw [toKeyList_reassemble]
+  simp_all
+
+@[simp]
+theorem toKeyList_splayUp (c : Tree α) (path : List (Frame α)) :
+    (splayUp c path).toKeyList = (reassemble c path).toKeyList := by
+  --induction path generalizing c with
+  induction path using List.twoStepInduction generalizing c with
+  | nil => simp [splayUp]
+  | singleton f => simp [splayUp]
+  | cons_cons f1 f2 rest ih _ =>
+    unfold splayUp
+    split_ifs with h
+    · rw [ih]; apply toKeyList_reassemble_samerest; simp only [toKeyList_bringUp]
+    · rw [ih]; apply toKeyList_reassemble_samerest
+      simp only [toKeyList_bringUp, implies_true, toKeyList_applyChild]
+
+theorem reassemble_descend_go [LinearOrder α] (t : Tree α) (q : α) (acc : List (Frame α)) :
+    let r := descend.go q t acc
+    reassemble r.1 r.2 = reassemble t acc := by
+  induction t generalizing acc with
+  | nil => simp [descend.go]
+  | node k l r ihl ihr =>
+    unfold descend.go
+    split_ifs with h1 h2
+    · simp
+    · simp [ihl (acc := ⟨.L, k, r⟩ :: acc), Frame.attach]
+    · simp [ihr (acc := ⟨.R, k, l⟩ :: acc), Frame.attach]
+
+theorem reassemble_descend [LinearOrder α] (t : Tree α) (q : α) :
+    reassemble (descend t q).1 (descend t q).2 = t := by
+  have := reassemble_descend_go t q []
+  simpa [descend] using this
+
+/-- Splaying does not change the key list. -/
+@[simp]
+theorem toKeyList_splay [LinearOrder α] (t : Tree α) (q : α) :
+    (splay t q).toKeyList = t.toKeyList := by
+  unfold splay
+  have hd := reassemble_descend t q
+  match h : descend t q with
+  | (.nil, []) =>
+      rw [h] at hd
+      simp at hd
+      simp [hd]
+  | (.nil, f :: rest) =>
+      rw [h] at hd
+      simp only [reassemble_cons, toKeyList_splayUp] at hd ⊢; rw [hd]
+  | (.node k l r, path) =>
+      rw [h] at hd
+      simp only [toKeyList_splayUp]; rw [hd]
+
+end ToKeyListReassemble
 
 
 /-! ### Characterizations of `descend` -/
@@ -367,6 +483,45 @@ theorem descend_preserves_tree [LinearOrder α] (t : Tree α) (q : α) :
     reassemble (descend t q).1 (descend t q).2 = t := by
   have := descend_go_preserves_tree t q []
   simpa [descend] using this
+
+lemma descend_go_equal_subtree [LinearOrder α] (q : α) (t : Tree α) (hbst : t.IsBST)
+    (acc acc' : List (Frame α)) :
+    (descend.go q t acc).1 = (descend.go q t acc').1 := by
+  induction t generalizing acc acc' with
+  | nil => simp [descend.go]
+  | node v l r lih rih =>
+    by_cases cq : q = v
+    · simp [cq, descend.go]
+    · simp only [descend.go, cq, ↓reduceIte]; split
+      · apply lih (IsBST_left_of_ISBST l v r hbst)
+      · apply rih (IsBST_right_of_ISBST l v r hbst)
+
+-- TODO: duplication!
+theorem descend_succeeds_of_contained [LinearOrder α] (t : Tree α) (q : α)
+  (hbst : t.IsBST) (hq : q ∈ t) : (descend t q).1 ≠ nil := by
+  induction t with
+  | nil => contradiction
+  | node v l r lih rih =>
+    by_cases cq : q = v
+    · rw [←cq]; simp [descend, descend.go]
+    · simp only [mem_node_iff, cq, false_or] at hq
+      cases hq with
+      | inl hql =>
+          have hlbst := IsBST_left_of_ISBST l v r hbst
+          simp only [descend, descend.go, cq, ↓reduceIte, lt_of_IsBST_left l v r q hbst hql, ne_eq];
+          have : ∀ acc, (descend.go q l acc).1 = (descend.go q l []).1 := by
+            intro acc; apply descend_go_equal_subtree; exact hlbst
+          rw [this]
+          exact lih hlbst hql
+      | inr hqr =>
+          have hrbst := IsBST_right_of_ISBST l v r hbst
+          have : ¬(q < v) := by
+            simp [gt_of_IsBST_right l v r q hbst hqr, le_of_lt]
+          simp only [descend, descend.go, cq, ↓reduceIte, this, ne_eq];
+          have : ∀ acc, (descend.go q r acc).1 = (descend.go q r []).1 := by
+            intro acc; apply descend_go_equal_subtree; exact hrbst
+          rw [this]
+          exact rih hrbst hqr
 
 end DescendLemmas
 
