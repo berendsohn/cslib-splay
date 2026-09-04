@@ -612,31 +612,77 @@ theorem splay_total_weighted_cost [LinearOrder α]
       _ ≤ 3 * Real.logb 2 (size w (t 0) / w (q i)) + 1 := by rw[hsize i.castSucc]
     · exact fun x => φ_nonneg hw x
 
-def freqCost (freq : ℕ) (m : ℕ) :=
+-- TODO: Try to generalize this to arbitrary positive weight functions
+
+/-def freqCost (freq : ℕ) (m : ℕ) :=
   match freq with
   | .zero => 0
   | .succ i => m / (i+1)
 
 noncomputable def entropy [Fintype α] (X : Fin m → α) :=
-  ∑ x, freqCost (X ⁻¹' {x}).ncard m
+  ∑ x, freqCost (X ⁻¹' {x}).ncard m-/
 
+/-
+/-- Weight function for the entropy bound -/
 noncomputable def entropy_weight [Fintype α] (X : Fin m → α) (x : α) :=
   (m : ℝ) / (X ⁻¹' {x}).ncard
 
-lemma entropy_weight_ge_one [Fintype α] (X : Fin m → α) (x : α) : entropy_weight X x ≥ 1 := by
-  simp [entropy_weight]; sorry -- TODO: cardinalities of (x : Set (Fin m)) ≤ m
+private lemma div_ge_1_of_pos_of_le {a b : ℝ} (ha : 0 < a) (h : a ≤ b) : (1 ≤ b/a) := by
+  field_simp; exact h
+
+lemma entropy_weight_ge_one [Fintype α] (X : Fin m → α) (hs : Function.Surjective X) (x : α) :
+    entropy_weight X x ≥ 1 := by
+  set pre := (X ⁻¹' {x})
+  have h1: 0 < pre.ncard := by
+    apply (Set.ncard_pos _).mpr
+    · exact Set.preimage_singleton_nonempty.mpr (hs x)
+    · exact Set.toFinite pre
+  have h2: pre.ncard ≤ m := by
+    calc pre.ncard ≤ Nat.card (Fin m) := Set.ncard_le_card pre
+      _ ≤ m := by simp
+  simp only [entropy_weight, ge_iff_le]
+  exact div_ge_1_of_pos_of_le (Nat.cast_pos'.mpr h1) (Nat.cast_le.mpr h2)-/
+
+/-- Frequency weight function for the entropy bound -/
+noncomputable def fweight [Fintype α] (X : Fin m → α) (x : α) :=
+  ((X ⁻¹' {x}).ncard : ℝ)
+
+lemma fweight_ge_one [Fintype α] (X : Fin m → α) (hsur : Function.Surjective X) (x : α) :
+    1 ≤ fweight X x := by
+  unfold fweight
+  set pre := (X ⁻¹' {x})
+  have : 0 < pre.ncard := by
+    apply (Set.ncard_pos _).mpr
+    · exact Set.preimage_singleton_nonempty.mpr (hsur x)
+    · exact Set.toFinite pre
+  exact Nat.one_le_cast.mpr this
+
+lemma fweight_sum [Fintype α] (X : Fin m → α) (hsur : Function.Surjective X) :
+    ∑ x, fweight X x = m := by
+  sorry
+
+noncomputable def entropy [Fintype α] (X : Fin m → α) :=
+  ∑ x, (X ⁻¹' {x}).ncard / m * Real.logb 2 (m / (X ⁻¹' {x}).ncard)
 
 -- TODO: Without FinType, using init.toKeyList in the statement?
 theorem entropy_bound [LinearOrder α] [Fintype α]
     (X : Fin m → α)
+    (hs : Function.Surjective X)
     (init : Tree α) (hbst : init.IsBST)
     (hcont : ∀ i : Fin m, (X i) ∈ init) :
     let n := init.nodeCount
-    splay.sequenceCost init X ≤ n * Real.logb 2 n + entropy X := binary
-  have hw : WeightFunc (entropy_weight X) := entropy_weight_ge_one X
+    splay.sequenceCost init X ≤ n * Real.logb 2 n + entropy X := by
+  set n := init.nodeCount
+  set w := fweight X
+  have hw : WeightFunc w := fweight_ge_one X hs
   have h_amortized := splay_total_weighted_cost hw m (splaySeq init X) X (splaySeq_succ init X)
     (by simp [splaySeq]; exact hbst) (by simp [splaySeq]; exact hcont)
-  sorry
+  unfold splay.sequenceCost; simp
+  calc ∑ x, ↑(splay.cost (splaySeq init X x.castSucc) (X x))
+    ≤  ∑ x, (3 * Real.logb 2 (size w (splaySeq init X 0) / w (X x)) + 1)
+      + φ w (splaySeq init X 0) := h_amortized
+
+
 
 end EntropyBound
 
