@@ -538,7 +538,7 @@ end WeightedPotentialMethod
 /-! ### Entropy bound -/
 section EntropyBound
 
-variable {w : α → ℝ}
+--variable {w : α → ℝ}
 
 /-! #### Sequence cost with fixed weight function -/
 
@@ -559,25 +559,35 @@ theorem total_cost_bound' {S : Type*} (m : ℕ)
     (s : Fin (m + 1) → S) (cost : Fin m → ℝ)
     (Φ : S → ℝ) (B : Fin m → ℝ)
     (hamort : ∀ i : Fin m,
+      Φ (s i.succ) - Φ (s i.castSucc) + cost i ≤ B i) :
+    ∑ i : Fin m, cost i ≤ ∑ i : Fin m, (B i) + Φ (s 0) - Φ (s (Fin.last m)) := by
+  linarith [total_cost_bound m s cost Φ B hamort]
+
+theorem total_cost_bound'' {S : Type*} (m : ℕ)
+    (s : Fin (m + 1) → S) (cost : Fin m → ℝ)
+    (Φ : S → ℝ) (B : Fin m → ℝ)
+    (hamort : ∀ i : Fin m,
       Φ (s i.succ) - Φ (s i.castSucc) + cost i ≤ B i)
     (hΦ_nonneg : ∀ x, 0 ≤ Φ x) :
     ∑ i : Fin m, cost i ≤ ∑ i : Fin m, (B i) + Φ (s 0) := by
   linarith [total_cost_bound m s cost Φ B hamort,
     hΦ_nonneg (s (Fin.last m))]
 
-theorem splay_total_weighted_cost [LinearOrder α]
+theorem splay_total_weighted_cost' [LinearOrder α]
+    (w : α → ℝ) -- TODO
     (hw : WeightFunc w)
     (m : ℕ)
     (t : Fin (m + 1) → Tree α)
     (q : Fin m → α)
     (hseq : ∀ i : Fin m, t i.succ = splay (t i.castSucc) (q i))
     (hbst : (t 0).IsBST)
-    (hcont : ∀ i : Fin m, (q i) ∈ (t 0))
-    :
+    (hcont : ∀ i : Fin m, (q i) ∈ (t 0)) :
     ∑ i : Fin m, (splay.cost (t i.castSucc) (q i) : ℝ) ≤
-    ∑ i : Fin m, (3 * Real.logb 2 ( size w (t 0) / w (q i) ) + 1) + φ w (t 0) := by
+    ∑ i : Fin m, (3 * Real.logb 2 ( size w (t 0) / w (q i) ) + 1) + φ w (t 0) - φ w (t (Fin.last m))
+    := by
+  -- TODO: want  - φ w (t (Fin.last m)) for later arbitrary-weight theorem
   cases m with
-  | zero => simp [φ_nonneg hw]
+  | zero => simp --[φ_nonneg hw]
   | succ m' =>
     let m := m'+1
     let B := fun i => (3 * Real.logb 2 ( size w (t 0) / w (q i) ) + 1)
@@ -601,18 +611,47 @@ theorem splay_total_weighted_cost [LinearOrder α]
       induction i using Fin.induction with
       | zero => rfl
       | succ i ih => rw [hseq, size_splay]; exact ih
-    apply total_cost_bound' m t
-      (fun i => (splay.cost (t i.castSucc) (q i) : ℝ)) (φ w) B
-    · intro i
-      rw [hseq i]
-      have hb := splay_access_lemma hw (t i.castSucc) (q i) (hbst' i.castSucc) (hcont' i i.castSucc)
-      calc φ w (splay (t i.castSucc) (q i)) - φ w (t i.castSucc) +
-            splay.cost (t i.castSucc) (q i)
-        ≤ 3 * Real.logb 2 (size w (t i.castSucc) / w (q i)) + 1 := hb
-      _ ≤ 3 * Real.logb 2 (size w (t 0) / w (q i)) + 1 := by rw[hsize i.castSucc]
-    · exact fun x => φ_nonneg hw x
+    apply total_cost_bound' m t (fun i => (splay.cost (t i.castSucc) (q i) : ℝ)) (φ w) B
+    intro i
+    rw [hseq i]
+    have hb := splay_access_lemma hw (t i.castSucc) (q i) (hbst' i.castSucc) (hcont' i i.castSucc)
+    calc φ w (splay (t i.castSucc) (q i)) - φ w (t i.castSucc) +
+          splay.cost (t i.castSucc) (q i)
+      ≤ 3 * Real.logb 2 (size w (t i.castSucc) / w (q i)) + 1 := hb
+    _ ≤ 3 * Real.logb 2 (size w (t 0) / w (q i)) + 1 := by rw[hsize i.castSucc]
+
+def FnPositive (w : α → ℝ) : Prop :=
+  ∀ x, 0 < w x
+
+def FnLb (b : ℝ) (w : α → ℝ) : Prop :=
+  ∀ x, b ≤ w x
+
+
+theorem splay_total_weighted_cost [LinearOrder α] [Fintype α]
+    {w : α → ℝ}
+    {ε : ℝ} (heps : ε > 0) (hw : FnLb ε w)
+    (m : ℕ)
+    (t : Fin (m + 1) → Tree α)
+    (q : Fin m → α)
+    (hseq : ∀ i : Fin m, t i.succ = splay (t i.castSucc) (q i))
+    (hbst : (t 0).IsBST)
+    (hcont : ∀ i : Fin m, (q i) ∈ (t 0))
+    :
+    ∑ i : Fin m, (splay.cost (t i.castSucc) (q i) : ℝ) ≤
+    ∑ i : Fin m, (3 * Real.logb 2 ( size w (t 0) / w (q i) ) + 1)
+      + φ w (t 0) - φ w (t (Fin.last m)) := by
+  let w' := fun x => (w x) / ε
+  have hw': WeightFunc w' := by
+    unfold WeightFunc; intro x; simp [w']; field_simp [heps]; exact hw x
+
+  #check splay_total_weighted_cost' w' hw' m t q hseq hbst hcont
+  /-apply splay_total_weighted_cost' w'
+  · exact hw'-/
 
 -- TODO: Try to generalize this to arbitrary positive weight functions
+
+-- TODO: Give up on entropy, try static optimality based on
+--   https://11011110.github.io/blog/2008/02/07/static-optimality-for.html
 
 /-def freqCost (freq : ℕ) (m : ℕ) :=
   match freq with
@@ -647,6 +686,10 @@ lemma entropy_weight_ge_one [Fintype α] (X : Fin m → α) (hs : Function.Surje
 noncomputable def fweight [Fintype α] (X : Fin m → α) (x : α) :=
   ((X ⁻¹' {x}).ncard : ℝ)
 
+/-- ℕ varaint of nfweight for convenience -/
+private noncomputable def nfweight [Fintype α] (X : Fin m → α) (x : α) :=
+  (X ⁻¹' {x}).ncard
+
 lemma fweight_ge_one [Fintype α] (X : Fin m → α) (hsur : Function.Surjective X) (x : α) :
     1 ≤ fweight X x := by
   unfold fweight
@@ -657,9 +700,72 @@ lemma fweight_ge_one [Fintype α] (X : Fin m → α) (hsur : Function.Surjective
     · exact Set.toFinite pre
   exact Nat.one_le_cast.mpr this
 
-lemma fweight_sum [Fintype α] (X : Fin m → α) (hsur : Function.Surjective X) :
-    ∑ x, fweight X x = m := by
-  sorry
+private lemma Fin_cast_succ_eq_card {m : ℕ} (s : Set (Fin m)) :
+    s.ncard = (Fin.castSucc '' s).ncard := by
+    apply Eq.symm; apply Set.InjOn.ncard_image; apply Set.injOn_of_injective
+    exact Fin.castSucc_injective m
+
+private lemma nfweight_sum [Fintype α] [DecidableEq α] {m : ℕ} (X : Fin m → α) :
+    ∑ x, nfweight X x = m := by
+  induction m with
+  | zero =>
+    have : ∀ x, nfweight X x = 0 := by
+      intro x; unfold nfweight;
+      have : (X ⁻¹' {x}) = ∅ := by
+        unfold Set.preimage
+        apply Set.eq_empty_of_forall_notMem
+        intro y; exact Fin.elim0 y
+      rw [this]; simp
+    simp [this]
+  | succ m ih =>
+    let X' := fun (i : (Fin m)) => X i.castSucc
+    have := ih X'
+    let y := X (Fin.last m)
+    have hyset : X ⁻¹' {y} = Fin.castSucc '' (X' ⁻¹' {y}) ∪ {(Fin.last m)} := by
+      apply Set.ext; intro i; constructor
+      · intro h
+        simp at h
+        cases i using Fin.reverseInduction with -- TODO: "induction"?
+        | last => right; simp
+        | cast i => left; simp [X', h]
+      · intro h; simp at h
+        cases h with
+        | inl h' => simp [y]; rw [h']
+        | inr h' =>
+          rcases h' with ⟨x,hx,hxi⟩
+          simp [X'] at hx
+          simp; rw[←hxi]; assumption
+    have hyw : nfweight X y = (nfweight X' y) + 1 := by
+      have : 1 = Set.ncard {Fin.last m} := by simp
+      simp [nfweight]; rw [hyset]; nth_rw 8 [this]
+      rw [Fin_cast_succ_eq_card (X' ⁻¹' {y})]
+      apply Set.ncard_union_eq (by simp)
+    have hxset : ∀ x, x ≠ y → X ⁻¹' {x} = Fin.castSucc '' (X' ⁻¹' {x}) := by
+      intro x h; apply Set.ext; intro i; constructor
+      · intro h'; simp at h' ⊢
+        cases i using Fin.reverseInduction with
+        | last => rw [←h'] at h; contradiction
+        | cast i =>
+          use i
+      · intro h'; simp at h' ⊢
+        rcases h' with ⟨j, hj, hji⟩
+        simp [X', hji] at hj; exact hj
+    have hxw : ∀ x, x ≠ y → nfweight X x = (nfweight X' x) := by
+      intro x h; simp [nfweight]; rw [hxset x h]
+      simp [Fin_cast_succ_eq_card (X' ⁻¹' {x})]
+    let codom := Finset.image X Finset.univ
+    have : ∀ x, x ∈ codom := by
+      intro x; unfold codom; simp
+    /-have : ∑ x ∈ codom, nfweight X x = m := sorry
+    apply?
+    --calc ∑ x, nfweight X x = nfweight X y + ∑ x with (x ≠ y), nfweight X x
+    rw [Finset.sum_filter]
+    #check Finset.sum_filter
+    apply Finset.sum_erase_add
+    rw [hxw]-/
+
+
+
 
 noncomputable def entropy [Fintype α] (X : Fin m → α) :=
   ∑ x, (X ⁻¹' {x}).ncard / m * Real.logb 2 (m / (X ⁻¹' {x}).ncard)
