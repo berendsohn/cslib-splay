@@ -36,9 +36,24 @@ def size (w : α → ℝ) : Tree α → ℝ
   | nil => (0 : ℝ)
   | node b l r => w b + size w l + size w r
 
-/-- A valid weight function maps to positive reals. -/
-def WeightFunc (w : α → ℝ) : Prop :=
+/-- For most of the proofs, this is what we expect from a weight function. -/
+def FnLbOne (w : α → ℝ) : Prop :=
   ∀ x, 1 ≤ w x
+
+def FnPos (w : α → ℝ) : Prop :=
+  ∀ x, 0 < w x
+
+def FnNonneg (w : α → ℝ) : Prop :=
+  ∀ x, 0 ≤ w x
+
+lemma FnPos_of_FnLbOne {w : α → ℝ} (h : FnLbOne w) : (FnPos w) := by
+  intro x; linarith [h x]
+
+lemma FnNonneg_of_FnPos {w : α → ℝ} (h : FnPos w) : (FnNonneg w) := by
+  intro x; linarith [h x]
+
+lemma FnNonneg_of_FnLbOne {w : α → ℝ} (h : FnLbOne w) : (FnNonneg w) := by
+  intro x; linarith [h x]
 
 /-- Rank of a tree: `log_2(nodeCount)`, or 0 for the empty tree. -/
 noncomputable def rank (w : α → ℝ) (t : Tree α) : ℝ :=
@@ -84,31 +99,37 @@ theorem size_applyChild (d : Dir) (op : Tree α → Tree α)
   | node k l r =>
     cases d <;> simp [applyChild, hop]
 
-lemma size_nonneg (hw : WeightFunc w) (t : Tree α) : 0 ≤ size w t := by
+lemma size_nonneg (hw : FnNonneg w) (t : Tree α) : 0 ≤ size w t := by
   induction t with
   | nil => simp [size_empty]
   | node v l r =>
     unfold size
     linarith [hw v]
 
-lemma size_ge_root_value (hw : WeightFunc w) (v : α) (l r : Tree α) :
+private lemma size_nonneg' (hw : FnPos w) (t : Tree α) : 0 ≤ size w t :=
+  size_nonneg (FnNonneg_of_FnPos hw) t
+
+private lemma size_nonneg'' (hw : FnLbOne w) (t : Tree α) : 0 ≤ size w t :=
+  size_nonneg (FnNonneg_of_FnLbOne hw) t
+
+lemma size_ge_root_value (hw : FnNonneg w) (v : α) (l r : Tree α) :
     w v ≤ size w (node v l r) := by
   unfold size
   linarith [size_nonneg hw l, size_nonneg hw r]
 
-lemma size_ge_left_child (hw : WeightFunc w) (v : α) (l r : Tree α) :
+lemma size_ge_left_child (hw : FnNonneg w) (v : α) (l r : Tree α) :
     size w l ≤ size w (node v l r) := by
     simp[size_node]; linarith [hw v, size_nonneg hw r]
 
-lemma size_ge_right_child (hw : WeightFunc w) (v : α) (l r : Tree α) :
+lemma size_ge_right_child (hw : FnNonneg w) (v : α) (l r : Tree α) :
     size w r ≤ size w (node v l r) := by
     simp[size_node]; linarith [hw v, size_nonneg hw l]
 
-lemma size_pos_of_non_nil (hw : WeightFunc w) (t : Tree α) (h : t ≠ nil) : 0 < size w t := by
+lemma size_pos_of_non_nil (hw : FnPos w) (t : Tree α) (h : t ≠ nil) : 0 < size w t := by
   cases t with
   | nil => by_contra; apply h; rfl
   | node v l r =>
-    linarith [hw v, size_ge_root_value hw v l r]
+    linarith [hw v, size_ge_root_value (FnNonneg_of_FnPos hw) v l r]
 
 lemma size_from_toKeyList (t : Tree α) :
   size w t = (t.toKeyList.map w).sum := by
@@ -118,14 +139,14 @@ lemma size_from_toKeyList (t : Tree α) :
     simp [size, toKeyList]
     linarith
 
-lemma size_zero_iff_empty (hw : WeightFunc w) (t : Tree α) : size w t = 0 ↔ t = nil := by
+lemma size_zero_iff_empty (hw : FnPos w) (t : Tree α) : size w t = 0 ↔ t = nil := by
   constructor
   · unfold size
     cases t with
     | nil => intro h; rfl
     | node v l r =>
       simp only [reduceCtorEq, imp_false]
-      linarith [size_nonneg hw l, size_nonneg hw r, hw v]
+      linarith [size_nonneg' hw l, size_nonneg' hw r, hw v]
   · intro h; simp [h]
 
 lemma size_Frame_attach (s : Tree α) (f : Frame α) :
@@ -139,17 +160,17 @@ lemma size_Frame_attach (s : Tree α) (f : Frame α) :
 @[simp] lemma rank_empty : rank w (.nil : Tree α) = 0 :=
   by simp [rank]
 
-lemma rank_nonneg (hw : WeightFunc w) (t : Tree α) : 0 ≤ rank w t := by
+lemma rank_nonneg (hw : FnLbOne w) (t : Tree α) : 0 ≤ rank w t := by
   unfold rank; cases t with
   | nil => simp
   | node v l r =>
     simp only [size_node]
     have : w v + size w l + size w r ≥ 1 := by
-      linarith [hw v, size_nonneg hw l, size_nonneg hw r]
+      linarith [hw v, size_nonneg'' hw l, size_nonneg'' hw r]
     exact Real.logb_nonneg (show 1 < (2 : ℝ) by simp) this
 
 -- TODO: Ridiculously long proof
-lemma rank_le_of_size_le (hw : WeightFunc w) (s t : Tree α) (h : size w s ≤ size w t) :
+lemma rank_le_of_size_le (hw : FnLbOne w) (s t : Tree α) (h : size w s ≤ size w t) :
     rank w s ≤ rank w t := by
   unfold rank
   cases s <;> cases t <;>
@@ -157,13 +178,13 @@ lemma rank_le_of_size_le (hw : WeightFunc w) (s t : Tree α) (h : size w s ≤ s
   · rfl
   · expose_names
     apply Real.logb_nonneg (show 1 < 2 by simp); simp [size]
-    linarith [hw value, size_nonneg hw left, size_nonneg hw right]
+    linarith [hw value, size_nonneg'' hw left, size_nonneg'' hw right]
   · expose_names
     simp [size] at h
-    linarith [hw value, size_nonneg hw left, size_nonneg hw right]
+    linarith [hw value, size_nonneg'' hw left, size_nonneg'' hw right]
   · expose_names
     apply SplayTree.logb_mono
-    · simp; linarith [hw value, size_nonneg hw left, size_nonneg hw right]
+    · simp; linarith [hw value, size_nonneg'' hw left, size_nonneg'' hw right]
     · linarith [h]
 
 @[simp] lemma φ_empty : φ w (.nil : Tree α) = 0 := rfl
@@ -171,7 +192,7 @@ lemma rank_le_of_size_le (hw : WeightFunc w) (s t : Tree α) (h : size w s ≤ s
 @[simp] lemma φ_node (l : Tree α) (k : α) (r : Tree α) :
     φ w (l △[k] r) = rank w (l △[k] r) + φ w l + φ w r := rfl
 
-lemma φ_nonneg (hw : WeightFunc w) (t : Tree α) : 0 ≤ φ w t := by
+lemma φ_nonneg (hw : FnLbOne w) (t : Tree α) : 0 ≤ φ w t := by
   induction t with
   | nil => rfl
   | node k l r => simp [φ]; linarith [rank_nonneg hw (l △[k] r), φ_nonneg hw l, φ_nonneg hw r]
@@ -197,7 +218,7 @@ lemma rank_eq_of_toKeyList_eq {s t : Tree α}
 
 /-! #### Potential of subtrees versus the whole tree -/
 
-theorem φ_subtree_le_left (hw : WeightFunc w) (l : Tree α) (k : α) (r : Tree α) :
+theorem φ_subtree_le_left (hw : FnLbOne w) (l : Tree α) (k : α) (r : Tree α) :
     φ w l + φ w r ≤ φ w (l △[k] r) := by
   simp [φ]; linarith [rank_nonneg hw (l △[k] r), φ_nonneg hw r]
 
@@ -205,20 +226,20 @@ theorem φ_subtree_le_left (hw : WeightFunc w) (l : Tree α) (k : α) (r : Tree 
     φ w r ≤ φ w (l △[k] r) := by
   simp [φ]; linarith [rank_nonneg (l △[k] r), φ_nonneg l]-/
 
-theorem φ_le_attach (hw : WeightFunc w) (c : Tree α) (f : Frame α) :
+theorem φ_le_attach (hw : FnLbOne w) (c : Tree α) (f : Frame α) :
   φ w c ≤ φ w (f.attach c) := by
   cases f with | mk d k s =>
   cases d <;> simp [Frame.attach, φ_node] <;>
   linarith [rank_nonneg hw (c △[k] s), rank_nonneg hw (s △[k] c),
   φ_nonneg hw c, φ_nonneg hw s]
 
-theorem φ_le_reassemble (hw : WeightFunc w) (c : Tree α) (path : List (Frame α)) :
+theorem φ_le_reassemble (hw : FnLbOne w) (c : Tree α) (path : List (Frame α)) :
     φ w c ≤ φ w (reassemble c path) := by
   induction path generalizing c with
   | nil => simp
   | cons f rest ih => simp only [reassemble_cons]; exact le_trans (φ_le_attach hw c f) (ih _)
 
-theorem φ_descend_subtree_le [LinearOrder α] (hw : WeightFunc w) (t : Tree α) (q : α) :
+theorem φ_descend_subtree_le [LinearOrder α] (hw : FnLbOne w) (t : Tree α) (q : α) :
     φ w (descend t q).1 ≤ φ w t := by
   have h := descend_preserves_tree t q
   calc φ w (descend t q).1
@@ -262,7 +283,7 @@ private lemma φ_transfer_mirror
 
 /-! #### Splay step potential bounds -/
 
-theorem φ_zig (hw : WeightFunc w) (c : Tree α) (f : Frame α) :
+theorem φ_zig (hw : FnLbOne w) (c : Tree α) (f : Frame α) :
     φ w (f.dir.bringUp (f.attach c)) - φ w (f.attach c) ≤
       rank w (f.dir.bringUp (f.attach c)) - rank w c := by
   rcases f with ⟨d, key, sib⟩
@@ -274,14 +295,14 @@ theorem φ_zig (hw : WeightFunc w) (c : Tree α) (f : Frame α) :
   · exact rank_nonneg hw _
   · have : rank w (r △[key] sib) ≤ rank w ((l △[k] r) △[key] sib) := by
       apply rank_le_of_size_le hw
-      simp [size_node]; linarith [hw k, size_nonneg hw l]
+      simp [size_node]; linarith [hw k, size_nonneg'' hw l]
     linarith
   · have : rank w (sib △[key] l) ≤ rank w (sib △[key] (l △[k] r)) := by
       apply rank_le_of_size_le hw
-      simp [size_node]; linarith [hw k, size_nonneg hw l, size_nonneg hw r]
+      simp [size_node]; linarith [hw k, size_nonneg'' hw l, size_nonneg'' hw r]
     linarith
 
-private theorem φ_zigzig_left (hw : WeightFunc w)
+private theorem φ_zigzig_left (hw : FnLbOne w)
     (a b c : α) (t1 t2 t3 t4 : Tree α) :
     let x := node a t1 t2 -- The node we're rotating
     let s := node c (node b x t3) t4 -- The initial tree
@@ -307,20 +328,20 @@ private theorem φ_zigzig_left (hw : WeightFunc w)
   --  linarith
   have : rank w (node b t2 x') ≤ rank w s' := by
     unfold s' s rotateRight x x'; simp only; apply rank_le_of_size_le hw
-    exact size_ge_right_child hw _ _ _
+    exact size_ge_right_child (FnNonneg_of_FnLbOne hw) _ _ _
   have : rank w x ≤ rank w (node b x t3) := by
-    apply rank_le_of_size_le hw; apply size_ge_left_child hw
+    apply rank_le_of_size_le hw; apply size_ge_left_child (FnNonneg_of_FnLbOne hw)
   --have : φ w s' - φ w s ≤ rank w s' + rank w x' - 2 * rank w x := by
   --  linarith
   have : rank w x + rank w x' ≤ 2 * rank w s' - 2 := by
     simp only [rank, reduceCtorEq, imp_self, (show s' ≠ nil by simp [s', rotateRight])]
     apply log_sum_le
-    · exact size_pos_of_non_nil hw x (show x ≠ nil by simp)
-    · exact size_pos_of_non_nil hw x' (show x' ≠ nil by simp)
+    · exact size_pos_of_non_nil (FnPos_of_FnLbOne hw) x (show x ≠ nil by simp)
+    · exact size_pos_of_non_nil (FnPos_of_FnLbOne hw) x' (show x' ≠ nil by simp)
     · unfold s' rotateRight s x x'; simp; linarith [hw b]
   linarith
 
-theorem φ_zigzig (hw : WeightFunc w) (a : α) (l r : Tree α) (f1 f2 : Frame α)
+theorem φ_zigzig (hw : FnLbOne w) (a : α) (l r : Tree α) (f1 f2 : Frame α)
     (heq : f1.dir = f2.dir) :
     let c := node a l r
     let s := f2.attach (f1.attach c)
@@ -336,7 +357,7 @@ theorem φ_zigzig (hw : WeightFunc w) (a : α) (l r : Tree α) (f1 f2 : Frame α
     simp only [φ_mirror, rank_mirror] at h
     assumption
 
-private theorem φ_zigzag_left (hw : WeightFunc w)
+private theorem φ_zigzag_left (hw : FnLbOne w)
     (a b c : α) (t1 t2 t3 t4 : Tree α) :
     let x := node b t2 t3 -- The node we're rotating
     let s := node a t1 (node c x t4) -- The initial tree
@@ -361,21 +382,21 @@ private theorem φ_zigzag_left (hw : WeightFunc w)
       rank w (node a t1 t2) + rank w (node c t3 t4) - rank w (node c x t4) - rank w x ) := by
     linarith
   have : rank w x ≤ rank w (node c x t4) := by
-    apply rank_le_of_size_le hw; apply size_ge_left_child hw
+    apply rank_le_of_size_le hw; apply size_ge_left_child (FnNonneg_of_FnLbOne hw)
   have : rank w (node a t1 t2) + rank w (node c t3 t4) ≤ 2 * rank w s' - 2 := by
     simp only [rank, size_node, imp_self,
       (show s' ≠ nil by simp [s', rotateLeft, applyChild, rotateRight])]
     apply log_sum_le
-    · linarith [hw a, size_nonneg hw t1, size_nonneg hw t2]
-    · linarith [hw c, size_nonneg hw t3, size_nonneg hw t4]
+    · linarith [hw a, size_nonneg'' hw t1, size_nonneg'' hw t2]
+    · linarith [hw c, size_nonneg'' hw t3, size_nonneg'' hw t4]
     · unfold s' applyChild rotateRight rotateLeft s x; simp; linarith [hw b]
   have : rank w x ≤ rank w s' := by
     simp only [s', s, applyChild, x, rotateRight, rotateLeft]; apply rank_le_of_size_le hw
-    simp; linarith [hw a, hw c, size_nonneg hw t1, size_nonneg hw t4]
+    simp; linarith [hw a, hw c, size_nonneg'' hw t1, size_nonneg'' hw t4]
   linarith
 
 
-theorem φ_zigzag (hw : WeightFunc w) (a : α) (l r : Tree α) (f1 f2 : Frame α)
+theorem φ_zigzag (hw : FnLbOne w) (a : α) (l r : Tree α) (f1 f2 : Frame α)
     (hne : f1.dir ≠ f2.dir) :
     let c := node a l r
     let s := f2.attach (f1.attach c)
@@ -413,7 +434,7 @@ lemma φ_reassemble_congr {s s' : Tree α} (path : List (Frame α))
 
 /-- The total potential change of splayUp plus the path length is at
     most 3 × the rank increase + 1. -/
-theorem φ_splayUp (hw : WeightFunc w) (c : Tree α) (hc : c ≠ nil) (path : List (Frame α)) :
+theorem φ_splayUp (hw : FnLbOne w) (c : Tree α) (hc : c ≠ nil) (path : List (Frame α)) :
     φ w (splayUp c path) - φ w (reassemble c path) + path.length ≤
       3 * (rank w (splayUp c path) - rank w c) + 1 := by
   induction c, path using splayUp_induction with
@@ -429,8 +450,8 @@ theorem φ_splayUp (hw : WeightFunc w) (c : Tree α) (hc : c ≠ nil) (path : Li
     have : rank w c ≤ rank w (f.dir.bringUp (Frame.attach c f)) := by
       rw [this]; simp only [Frame.attach]; cases f.dir;
         all_goals simp only; apply rank_le_of_size_le hw
-      · apply size_ge_left_child hw
-      · apply size_ge_right_child hw
+      · apply size_ge_left_child (FnNonneg_of_FnLbOne hw)
+      · apply size_ge_right_child (FnNonneg_of_FnLbOne hw)
     linarith [φ_zig hw c f]
   | step c f1 f2 rest ih =>
     cases c with
@@ -493,7 +514,7 @@ theorem φ_splayUp (hw : WeightFunc w) (c : Tree α) (hc : c ≠ nil) (path : Li
 /-- Slighly weaker version of Sleator and Tarjan's access lemma: Does not take into account the
   subtree rooted at q, only the weight of q itself. -/
 theorem splay_access_lemma [LinearOrder α]
-    (hw : WeightFunc w) (t : Tree α) (q : α) (hbst : IsBST t) (hq : q ∈ t) :
+    (hw : FnLbOne w) (t : Tree α) (q : α) (hbst : IsBST t) (hq : q ∈ t) :
     φ w (splay t q) - φ w t + splay.cost t q ≤
       3 * Real.logb 2 ( (size w t) / w q ) + 1 := by
   rcases hdecomp : descend t q with ⟨reached, path⟩
@@ -524,10 +545,10 @@ theorem splay_access_lemma [LinearOrder α]
     _ ≤ 3 * ( Real.logb 2 ( size w t ) - Real.logb 2 (w q)) + 1 := by
       have : Real.logb 2 (w q) ≤ rank w (l △[q] r) := by
         simp only [rank, size_node]; apply logb_mono (by linarith [hw q])
-        linarith [size_nonneg hw l, size_nonneg hw r]
+        linarith [size_nonneg'' hw l, size_nonneg'' hw r]
       linarith
     _ ≤ 3 * Real.logb 2 ( (size w t) / w q ) + 1 := by
-      have hsizepos: size w t ≠ 0 := by linarith [size_pos_of_non_nil hw t htnn]
+      have hsizepos: size w t ≠ 0 := by linarith [size_pos_of_non_nil (FnPos_of_FnLbOne hw) t htnn]
       have hwqpos: w q ≠ 0 := by linarith [hw q]
       simp [Real.logb_div hsizepos hwqpos]
 
@@ -538,7 +559,7 @@ end WeightedPotentialMethod
 /-! ### Entropy bound -/
 section EntropyBound
 
---variable {w : α → ℝ}
+variable {w : α → ℝ}
 
 /-! #### Sequence cost with fixed weight function -/
 
@@ -574,8 +595,7 @@ theorem total_cost_bound'' {S : Type*} (m : ℕ)
     hΦ_nonneg (s (Fin.last m))]
 
 theorem splay_total_weighted_cost' [LinearOrder α]
-    (w : α → ℝ) -- TODO
-    (hw : WeightFunc w)
+    (hw : FnLbOne w)
     (m : ℕ)
     (t : Fin (m + 1) → Tree α)
     (q : Fin m → α)
@@ -620,15 +640,44 @@ theorem splay_total_weighted_cost' [LinearOrder α]
       ≤ 3 * Real.logb 2 (size w (t i.castSucc) / w (q i)) + 1 := hb
     _ ≤ 3 * Real.logb 2 (size w (t 0) / w (q i)) + 1 := by rw[hsize i.castSucc]
 
-def FnPositive (w : α → ℝ) : Prop :=
-  ∀ x, 0 < w x
-
 def FnLb (b : ℝ) (w : α → ℝ) : Prop :=
   ∀ x, b ≤ w x
 
+lemma FnPos_of_FnLb {w : α → ℝ} {b : ℝ} (h : FnLb b w) (hb : b > 0) : (FnPos w) := by
+  intro x; linarith [h x]
 
-theorem splay_total_weighted_cost [LinearOrder α] [Fintype α]
-    {w : α → ℝ}
+private lemma size_mul_weight (c : ℝ) (t : Tree α) :
+  let w' := fun x => c * (w x)
+  size w' t = c * (size w t) := by
+    induction t with
+    | nil => simp
+    | node v l r lih rih => unfold size; simp [lih, rih]; linarith
+
+private lemma rank_mul_weight (hw : FnPos w) (c : ℝ) (hc : c > 0) (t : Tree α) (ht : t ≠ nil) :
+  let w' := fun x => c * (w x)
+  rank w' t = rank w t + Real.logb 2 c := by
+    cases t with
+    | nil => contradiction
+    | node v l r =>
+      set w' := fun x => c * (w x)
+      have hcnz : c ≠ 0 := by linarith [hc]
+      have hsize : size w (l △[v] r) ≠ 0 := by
+        simp; linarith [hw v, size_nonneg' hw l, size_nonneg' hw r]
+      unfold rank; simp only [w', size_mul_weight, Real.logb_mul hcnz hsize]; linarith
+
+private lemma φ_mul_weight (hw : FnPos w) (c : ℝ) (hc : c > 0) (t : Tree α) :
+  let w' := fun x => c * (w x)
+  φ w' t = φ w t + t.nodeCount * (Real.logb 2 c) := by
+  induction t with
+  | nil => simp
+  | node v l r lih rih =>
+    have : (node v l r) ≠ nil := by simp
+    simp only [φ_node, nodeCount_node, Nat.cast_add, Nat.cast_one];
+    rw [rank_mul_weight hw c hc (node v l r) this, lih, rih]; linarith
+
+
+-- TODO: Try to get rid of the explicit lower bound.
+theorem splay_total_weighted_cost_lb [LinearOrder α]
     {ε : ℝ} (heps : ε > 0) (hw : FnLb ε w)
     (m : ℕ)
     (t : Fin (m + 1) → Tree α)
@@ -640,11 +689,81 @@ theorem splay_total_weighted_cost [LinearOrder α] [Fintype α]
     ∑ i : Fin m, (splay.cost (t i.castSucc) (q i) : ℝ) ≤
     ∑ i : Fin m, (3 * Real.logb 2 ( size w (t 0) / w (q i) ) + 1)
       + φ w (t 0) - φ w (t (Fin.last m)) := by
-  let w' := fun x => (w x) / ε
-  have hw': WeightFunc w' := by
-    unfold WeightFunc; intro x; simp [w']; field_simp [heps]; exact hw x
+  if ε ≥ 1 then
+    have hw2 : FnLbOne w := by unfold FnLbOne; intro x; have := hw x; linarith
+    exact splay_total_weighted_cost' hw2 m t q hseq hbst hcont
+  else
+    let w' := fun x => (1/ε) * (w x)
+    have hw': FnLbOne w' := by
+      unfold FnLbOne; intro x; simp [w']; field_simp [heps]; exact hw x
+    have h := splay_total_weighted_cost' hw' m t q hseq hbst hcont
+    simp only [one_div, size_mul_weight, w'] at h
+    have := φ_mul_weight (FnPos_of_FnLb hw heps) (ε⁻¹) (by field_simp; linarith)
+    rw [this (t 0), this (t (Fin.last m))] at h
+    have : ∀ i, (t 0).nodeCount = (t i).nodeCount := by
+      intro i; induction i using Fin.induction with
+      | zero => rfl
+      | succ m ih => simp[ih, hseq]
+    rw [this (Fin.last m)] at h
+    have heps: ε < 1 := by linarith
+    have : ∀ i, ε⁻¹ * size w (t 0) / (ε⁻¹ * w (q i)) = (size w (t 0)) / (w (q i)) := by
+      intro i; field_simp
+    calc ∑ i, ↑(splay.cost (t i.castSucc) (q i)) ≤
+      ∑ x, (3 * Real.logb 2 (ε⁻¹ * size w (t 0) / (ε⁻¹ * w (q x))) + 1) +
+        (φ w (t 0) + ↑(t (Fin.last m)).nodeCount * Real.logb 2 ε⁻¹) -
+          (φ w (t (Fin.last m)) + ↑(t (Fin.last m)).nodeCount * Real.logb 2 ε⁻¹) := h
+      _ ≤ ∑ x, (3 * Real.logb 2 (ε⁻¹ * size w (t 0) / (ε⁻¹ * w (q x))) + 1)
+        + φ w (t 0) - φ w (t (Fin.last m)) := by linarith
+      _ ≤ ∑ x, (3 * Real.logb 2 (size w (t 0) / (w (q x))) + 1)
+        + φ w (t 0) - φ w (t (Fin.last m)) := by simp [this]
 
-  #check splay_total_weighted_cost' w' hw' m t q hseq hbst hcont
+-- TODO: Try to get rid of the explicit lower bound.
+theorem splay_total_weighted_cost_lb' [LinearOrder α]
+    {ε : ℝ} (heps : ε > 0) (hw : FnLb ε w)
+    (m : ℕ)
+    (init : Tree α) (hbst : init.IsBST)
+    {φ_lb : ℝ} (hφ : ∀ t, t.toKeyList = init.toKeyList → φ_lb ≤ φ w t)
+    (X : Fin m → α) (hcont : ∀ i, X i ∈ init)
+    : splay.sequenceCost init X ≤
+      ∑ i : Fin m, (3 * Real.logb 2 ( size w init / w (X i) ) + 1)
+      + φ w init - φ_lb := by
+  simp [splay.sequenceCost]
+  have hbound := splay_total_weighted_cost_lb
+    heps hw m (splaySeq init X) X (splaySeq_succ init X) hbst hcont
+  have : splaySeq init X 0 = init := rfl
+  rw [this] at hbound
+  have : (splaySeq init X (Fin.last m)).toKeyList = init.toKeyList :=
+    toKeyList_splaySeq init X (Fin.last m)
+  linarith [hbound, hφ (splaySeq init X (Fin.last m)) this]
+
+/-
+
+/-theorem splay_total_weighted_cost [LinearOrder α] [Finite α]
+    (hw : FnPos w)
+    (m : ℕ)
+    (t : Fin (m + 1) → Tree α)
+    (q : Fin m → α)
+    (hseq : ∀ i : Fin m, t i.succ = splay (t i.castSucc) (q i))
+    (hbst : (t 0).IsBST)
+    (hcont : ∀ i : Fin m, (q i) ∈ (t 0))
+    :
+    ∑ i : Fin m, (splay.cost (t i.castSucc) (q i) : ℝ) ≤
+    ∑ i : Fin m, (3 * Real.logb 2 ( size w (t 0) / w (q i) ) + 1)
+      + φ w (t 0) - φ w (t (Fin.last m)) := by
+      set u := (Finset.univ : Finset α)
+      by_cases hm : m > 0
+      ·
+        have : u.Nonempty := by
+          apply Finset.univ_nonempty_iff.mpr
+          apply Fin.pos_iff_nonempty.mp hm
+        #check Finset.min' (Finset.univ : Finset (Fin m))
+        set s := Finset.image w u
+        set ε := Finset.min' u this
+        have hw' : FnLb ε w := by
+          intro x-/
+
+
+
   /-apply splay_total_weighted_cost' w'
   · exact hw'-/
 
@@ -780,7 +899,7 @@ theorem entropy_bound [LinearOrder α] [Fintype α]
     splay.sequenceCost init X ≤ n * Real.logb 2 n + entropy X := by
   set n := init.nodeCount
   set w := fweight X
-  have hw : WeightFunc w := fweight_ge_one X hs
+  have hw : FnLbOne w := fweight_ge_one X hs
   have h_amortized := splay_total_weighted_cost hw m (splaySeq init X) X (splaySeq_succ init X)
     (by simp [splaySeq]; exact hbst) (by simp [splaySeq]; exact hcont)
   unfold splay.sequenceCost; simp
@@ -788,7 +907,7 @@ theorem entropy_bound [LinearOrder α] [Fintype α]
     ≤  ∑ x, (3 * Real.logb 2 (size w (splaySeq init X 0) / w (X x)) + 1)
       + φ w (splaySeq init X 0) := h_amortized
 
-
+-/
 
 end EntropyBound
 

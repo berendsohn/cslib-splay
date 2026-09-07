@@ -8,6 +8,7 @@ Authors: Anton Kovsharov, Antoine du Fresne von Hohenesche,
 module
 
 public import Cslib.Foundations.Data.SplayTree.Basic
+public import Cslib.Foundations.Data.SplayTree.Complexity -- TODO: Better move some lemmas
 
 /-!
 # Splay Tree Correctness
@@ -100,6 +101,14 @@ theorem toKeyList_splay [LinearOrder α] (t : Tree α) (q : α) :
   | (.node k l r, path) =>
       rw [h] at hpres
       rw [toKeyList_splayUp, ← hpres]
+
+@[simp]
+theorem toKeyList_splaySeq [LinearOrder α]
+    {m : ℕ} (init : Tree α) (X : Fin m → α) (k : Fin (m + 1)) :
+    (splaySeq init X k).toKeyList = init.toKeyList := by
+  induction k using Fin.induction with
+  | zero => simp [splaySeq]
+  | succ m ih => simp only [splaySeq_succ, toKeyList_splay]; exact ih
 
 theorem splay_empty_iff [LinearOrder α] (t : Tree α) (q : α) :
     splay t q = .nil ↔ t = .nil := by

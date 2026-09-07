@@ -11,6 +11,7 @@ public import Cslib.Init
 public import Mathlib.Combinatorics.SimpleGraph.Basic
 public import Mathlib.Combinatorics.SimpleGraph.Metric
 public import Mathlib.Data.Tree.Basic
+public import Mathlib.Tactic.Linarith
 
 /-!
 # Binary Tree
@@ -44,6 +45,8 @@ def nodeCount : Tree α → ℕ
 @[simp] lemma nodeCount_node (l : Tree α) (k : α) (r : Tree α) :
     (l △[k] r).nodeCount = 1 + l.nodeCount + r.nodeCount := rfl
 
+lemma nodeCount_nonneg (t : Tree α) : nodeCount t ≥ 0 := by cases t; all_goals simp
+
 /-- In-order traversal as a list of keys. -/
 def toKeyList : Tree α → List α
   | .nil => []
@@ -73,6 +76,12 @@ def searchPathLen [LinearOrder α] (t : Tree α) (q : α) : ℕ :=
       1 + r.searchPathLen q
     else
       1
+
+lemma searchPathLen_le_nodeCount [LinearOrder α] (t : Tree α) (q : α) :
+    searchPathLen t q ≤ t.nodeCount := by
+  induction t with
+  | nil => simp[searchPathLen]
+  | node v l r ihl ihr => simp[searchPathLen]; split_ifs; all_goals linarith
 
 /--
 Remark:
