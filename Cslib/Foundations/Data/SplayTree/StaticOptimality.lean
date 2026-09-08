@@ -27,17 +27,25 @@ def staticCost [LinearOrder α] (t : Tree α) (X : Fin m → α) : ℕ :=
     if q ∈ s then 3^(s.nodeCount - searchPathLen s q : ℝ) else 0-/
 
 private noncomputable def static_weight [LinearOrder α] (s : Tree α) (q : α) : ℝ :=
-    3^(s.nodeCount - searchPathLen s q : ℝ)
+  3^(s.nodeCount - searchPathLen s q : ℝ)
+
+private lemma static_weight_ge_one [LinearOrder α] (s : Tree α) (q : α) :
+    static_weight s q ≥ 1 := by
+  simp only [static_weight, ge_iff_le]; rw[←Real.rpow_zero 3]
+  apply Real.rpow_le_rpow_of_exponent_le
+  · simp
+  · simp; linarith [searchPathLen_le_nodeCount s q]
 
 private lemma static_weight_pos [LinearOrder α] (s : Tree α) (q : α) : static_weight s q > 0 := by
-  simp only [static_weight, gt_iff_lt]; apply Real.rpow_pos_of_pos (by simp)
+  simp [FnPos_of_FnLbOne (static_weight_ge_one s) q]
+  --simp only [static_weight, gt_iff_lt]; apply Real.rpow_pos_of_pos (by simp)
 
--- TODO?
+/-
 private lemma static_weight_lb [LinearOrder α] (s : Tree α) (q : α) (hq : q ∈ s) :
     1 ≤ static_weight s q := by
   simp only [static_weight, hq]
   apply Real.one_le_rpow (by simp)
-  simp only [sub_nonneg, Nat.cast_le]; exact searchPathLen_le_nodeCount s q
+  simp only [sub_nonneg, Nat.cast_le]; exact searchPathLen_le_nodeCount s q-/
 
 private lemma searchPathLen_left [LinearOrder α] (v : α) (l r : Tree α) (q : α) (hqv : q < v) :
     searchPathLen (node v l r) q = 1 + searchPathLen l q := by
@@ -212,54 +220,60 @@ private lemma static_weight_φ_ub [LinearOrder α] (s t : Tree α)
         · exact hbst
     _ ≤ s.nodeCount^2 * Real.logb 2 3 := by
       have : s.nodeCount = t.nodeCount := by
-        simp [nodeCount_of_toKeyList, hst]
+        simp [nodeCount_from_toKeyList, hst]
       rw [pow_two, this]
 
-
---------------------
-
-private lemma static_rank_lb [LinearOrder α] (s t : Tree α) (ht : t ≠ nil) :
-    -s.nodeCount * (Real.logb 2 3) ≤ rank (static_weight s) t := by
-  let h := static_size_lb s t ht
-  apply (Real.le_logb_iff_rpow_le _ _).mpr at h
-  calc -s.nodeCount * Real.logb 2 3 = (Real.logb 2 3) * (-↑s.nodeCount) := by linarith
-    _ ≤ (Real.logb 2 3) * Real.logb 3 (size (static_weight s) t) := by
-      have : 0 < Real.logb 2 3 := by exact Real.logb_pos (by simp) (by simp)
-      apply (mul_le_mul_iff_right₀ this).mpr
-      apply (Real.le_logb_iff_rpow_le _ _).mpr
-      · exact static_size_lb s t ht
-      · simp
-      · exact size_pos_of_non_nil (static_weight_pos s) t ht
-    _ = Real.logb 2 (size (static_weight s) t) := by
-      apply Real.mul_logb; all_goals linarith
-    _ = rank (static_weight s) t := by simp [rank]
-
-private lemma static_φ_lb [LinearOrder α] (s t : Tree α) (hst : s.nodeCount = t.nodeCount) :
-    -s.nodeCount^2 * (Real.logb 2 3) ≤ φ (static_weight s) t := by
-  induction t with
-  | nil => simp [hst]
-  | node v l r lih rih =>
-    simp only [φ] -- TODO
-    calc -↑s.nodeCount * ↑(l △[v] r).nodeCount * Real.logb 2 3 ≤
-      -↑s.nodeCount * (1 + ↑l.nodeCount + ↑r.nodeCount) * Real.logb 2 3 := by simp
-      _ ≤  -↑s.nodeCount * Real.logb 2 3 + φ (static_weight s) l + φ (static_weight s) r := by
-        linarith
-      _ ≤ rank (static_weight s) (l △[v] r) + φ (static_weight s) l + φ (static_weight s) r := by
-        linarith [static_rank_lb s (node v l r) (by simp)]
-
-
-
-theorem splay_tree_static_optimality [LinearOrder α] (n m : ℕ) (X : Fin m → α)
-    (init s : Tree α) :
-    splay.sequenceCost init X ≤ staticCost static X + s.nodeCount * init.nodeCount * (Real.logb 2 3)
+-- TODO: Should hbst2 follow from hkeys and hbst1?
+/--
+Splay performs as well as any static tree `s`, with any initial tree `init`, up to constant factors
+and an O(n²) additive term.
+Assumes that all queries are successful.
+-/
+theorem splay_tree_static_optimality [LinearOrder α] (m : ℕ)
+    (init s : Tree α) (hkeys : s.toKeyList = init.toKeyList)
+    (hinitbst : init.IsBST) (hsbst : s.IsBST)
+    (X : Fin m → α) (hX : ∀ i, X i ∈ init) :
+    let n := s.nodeCount
+    splay.sequenceCost init X ≤ m + (Real.logb 2 3) * (3 * staticCost s X + n ^ 2)
     := by
-  set ε := (3 : ℝ)^(-s.nodeCount : ℝ)
-  have hε_pos : ε > 0 := by simp[ε]
-  have hstw_lb : FnLb ε (static_weight s) := by intro x; unfold ε; exact static_weight_lb s x
-  let φ_lb := -s.nodeCount * t.nodeCount * (Real.logb 2 3)
-  have hφ := static_φ_lb s
-  #check hφ
-  have := splay_total_weighted_cost_lb' hε_pos hstw_lb hφ
+  by_cases hinit : init = nil
+  · have : s = nil := by apply toKeyList_of_empty; simp [hkeys, hinit]
+    have hsnc : s.nodeCount = 0 := by simp [this]
+    cases m with
+    | zero => simp[hsnc]
+    | succ m =>
+      have : init ≠ nil := nonnil_of_mem (X (Fin.last m)) (hX (Fin.last m))
+      contradiction
+  · have hφ_ub: (∀ (t : Tree α), t.toKeyList = init.toKeyList
+        → φ (static_weight s) t ≤ ↑s.nodeCount ^ 2 * Real.logb 2 3) := by
+      intro t h; apply static_weight_φ_ub
+      · simp [h, hkeys]
+      · exact hsbst
+    have hbound := splay_total_weighted_cost (static_weight_ge_one s) m init hinitbst hφ_ub X hX
+    have hsize_ub := static_weight_size_ub s init (by simp [hkeys]) hsbst
+    apply le_trans hbound
+    simp only [staticCost, Nat.cast_sum]
+    rw [mul_comm 3, Finset.sum_mul]
+    have : (m : ℝ) = ∑ i : Fin m, 1 := by simp
+    rw [this, mul_comm (Real.logb 2 3)]
+    rw [add_mul, Finset.sum_mul, ←add_assoc, ←Finset.sum_add_distrib]
+    simp only [add_comm]
+    gcongr 3 with i
+    calc 3 * Real.logb 2 (size (static_weight s) init / static_weight s (X i)) ≤
+      3 * Real.logb 2 (3 ^ (s.nodeCount : ℝ) / static_weight s (X i)) := by
+          have hpos := static_weight_pos s (X i)
+          simp only [Real.rpow_natCast, Nat.ofNat_pos, mul_le_mul_iff_right₀, ge_iff_le]
+          apply logb_mono
+          · apply div_pos (size_pos_of_non_nil (static_weight_pos s) init hinit) hpos
+          · exact (div_le_div_iff_of_pos_right hpos).mpr hsize_ub
+      _ = 3 * Real.logb 2 (3 ^ (s.searchPathLen (X i) : ℝ)) := by
+        simp only[static_weight]; congr; field_simp
+        rw [←Real.rpow_add (show 0 < 3 by simp)]
+        congr; linarith
+      _ ≤ (s.searchPathLen (X i) * 3 * Real.logb 2 3 : ℝ) := by
+        rw [mul_comm]
+        rw [Real.logb_rpow_eq_mul_logb_of_pos (by simp)]
+        linarith
 
 end Weighted
 

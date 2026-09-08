@@ -62,7 +62,7 @@ lemma toKeyList_of_empty {t : Tree α} (h : toKeyList t = []) : (t = nil) := by
   · simp
   · simp [List.append_assoc] at h
 
-lemma nodeCount_of_toKeyList (t : Tree α) :
+lemma nodeCount_from_toKeyList (t : Tree α) :
     (t.nodeCount = t.toKeyList.length) := by
   induction t with
   | nil => simp

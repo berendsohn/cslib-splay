@@ -556,8 +556,8 @@ theorem splay_access_lemma [LinearOrder α]
 end WeightedPotentialMethod
 
 
-/-! ### Entropy bound -/
-section EntropyBound
+/-! ### Weighted sequence cost -/
+section SequenceCost
 
 variable {w : α → ℝ}
 
@@ -639,6 +639,28 @@ theorem splay_total_weighted_cost' [LinearOrder α]
           splay.cost (t i.castSucc) (q i)
       ≤ 3 * Real.logb 2 (size w (t i.castSucc) / w (q i)) + 1 := hb
     _ ≤ 3 * Real.logb 2 (size w (t 0) / w (q i)) + 1 := by rw[hsize i.castSucc]
+
+theorem splay_total_weighted_cost [LinearOrder α]
+    (hw : FnLbOne w)
+    (m : ℕ)
+    (init : Tree α) (hbst : init.IsBST)
+    {φ_ub : ℝ} (hφ : ∀ t, t.toKeyList = init.toKeyList → φ w t ≤ φ_ub)
+    (X : Fin m → α) (hcont : ∀ i, X i ∈ init)
+    : splay.sequenceCost init X ≤
+      ∑ i : Fin m, (3 * Real.logb 2 ( size w init / w (X i) ) + 1)
+      + φ_ub := by
+  have hbound := splay_total_weighted_cost'
+    hw m (splaySeq init X) X (splaySeq_succ init X) hbst hcont
+  have : splaySeq init X 0 = init := rfl
+  rw [this] at hbound
+  have : 0 ≤ φ w (splaySeq init X (Fin.last m)) := by apply φ_nonneg hw
+  have : (splaySeq init X (Fin.last m)).toKeyList = init.toKeyList :=
+    toKeyList_splaySeq init X (Fin.last m)
+  have := hφ init (by rfl)
+  simp [splay.sequenceCost]; linarith [hbound]
+
+
+/-! #### Positive weight functions -/
 
 def FnLb (b : ℝ) (w : α → ℝ) : Prop :=
   ∀ x, b ≤ w x
@@ -909,7 +931,7 @@ theorem entropy_bound [LinearOrder α] [Fintype α]
 
 -/
 
-end EntropyBound
+end SequenceCost
 
 end Weighted
 
