@@ -324,15 +324,16 @@ private lemma IsBST_of_IsBSTAux [LinearOrder α] (t : Tree α) (x y : Option α)
     (h : IsBSTAux t x y) : IsBST t := by
   unfold IsBST; rcases IsBSTAux_children_none t x y h with ⟨_,_,_⟩; assumption
 
-theorem IsBST_left_of_ISBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
+theorem IsBST_left_of_IsBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
     (hbst : IsBST (l △[k] r)) : IsBST l := by
   simp only [IsBST, IsBSTAux_node, Option.elim_none, true_and] at hbst; rcases hbst with ⟨hl,_⟩
   exact IsBST_of_IsBSTAux l none (some k) hl
 
-theorem IsBST_right_of_ISBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
+theorem IsBST_right_of_IsBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
     (hbst : IsBST (l △[k] r)) : IsBST r := by
   simp only [IsBST, IsBSTAux_node, Option.elim_none, true_and] at hbst; rcases hbst with ⟨_,hr⟩
   exact IsBST_of_IsBSTAux r (some k) none hr
+
 end IsBSTAccessors
 
 
@@ -408,5 +409,67 @@ theorem nonnil_of_mem {t : Tree α} (q : α) (hq : q ∈ t) : (t ≠ nil) := by
   contradiction
 
 end BSTMembership
+
+section BSTMoreStuff -- TODO
+
+
+
+private lemma IsBSTAux_left_bound [LinearOrder α] {t : Tree α} (h : IsBSTAux t none (some b)) :
+    ∀ x ∈ t, x < b := by
+  intro x hx
+  induction t generalizing b with
+  | nil => contradiction
+  | node v l r lih rih =>
+    simp at h; rcases h with ⟨hv, hl, hr⟩
+    have : (node v l r).IsBST := IsBST_of_IsBSTAux (node v l r) none (some b) h
+    have := mem_imp_contains this hx
+    simp [bstContains] at this; split at this
+    · apply lt_trans _ hv; assumption
+    ·
+
+      have hlbst := IsBST_of_IsBSTAux l none (some v) hl
+      have : x ∈ l := by apply (contains_iff_mem hlbst).mp this
+      have := lih hl this
+
+-- TODO
+theorem left_lt_key_of_IsBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
+    (hbst : IsBST (l △[k] r)) : ∀ v ∈ l, v ≤ k := by
+  induction l generalizing k r with
+  | nil => sorry
+  | node u l' r' lih _ =>
+    simp at hbst
+    have := IsBST_left_of_IsBST (node u l' r') k r hbst
+    have := lih u r' this
+
+  intro v
+  have : l.IsBSTAux none (some k) := by simp at hbst; simp [hbst]
+
+
+theorem IsBST_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
+    t.IsBST ↔ t.toKeyList.SortedLT := by
+  induction t with
+  | nil => simp [IsBST]; apply List.sortedLT_iff_pairwise.mpr; simp
+  | node v l r lih rih =>
+    constructor
+    · intro h
+      simp; apply List.sortedLT_iff_isChain.mpr
+      apply List.isChain_split.mpr; constructor
+      · apply List.isChain_append.mpr; constructor
+        · apply List.sortedLT_iff_isChain.mp
+          exact lih.mp (IsBST_left_of_IsBST l v r h)
+        · constructor
+          · simp
+          · intro x hx y hy
+            simp at hy
+            rw [←hy]
+      · simp [List.isChain_cons]; constructor
+
+theorem IsBST_of_IsBST_eq_toKeyList [LinearOrder α] {s t : Tree α}
+    (hkeys : s.toKeyList = t.toKeyList) (hsbst : s.IsBST) : t.IsBST := by
+  apply IsBST_iff_toKeyList_sorted.mpr
+  rw [←hkeys]
+  exact IsBST_iff_toKeyList_sorted.mp hsbst
+
+end BSTMoreStuff
 
 end Tree

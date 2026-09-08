@@ -133,7 +133,7 @@ private lemma static_weight_size_self_ub [LinearOrder α] (s : Tree α) (hbst : 
           = 3^(s.nodeCount - l.nodeCount-1 : ℝ) * size (static_weight l) l := by
             exact static_weight_size_left v l r hbst
         _ ≤ 3^(s.nodeCount - l.nodeCount-1 : ℝ) * 3 ^ l.nodeCount := by
-            gcongr; apply lih; exact IsBST_left_of_ISBST l v r hbst
+            gcongr; apply lih; exact IsBST_left_of_IsBST l v r hbst
         _ = 3^(s.nodeCount - 1 : ℝ) := by
           rw [←Real.rpow_natCast 3]
           rw [←Real.rpow_add (show 0 < 3 by simp)]
@@ -145,7 +145,7 @@ private lemma static_weight_size_self_ub [LinearOrder α] (s : Tree α) (hbst : 
           = 3^(s.nodeCount - r.nodeCount-1 : ℝ) * size (static_weight r) r := by
             exact static_weight_size_right v l r hbst
         _ ≤ 3^(s.nodeCount - r.nodeCount-1 : ℝ) * 3 ^ r.nodeCount := by
-            gcongr; apply rih; exact IsBST_right_of_ISBST l v r hbst
+            gcongr; apply rih; exact IsBST_right_of_IsBST l v r hbst
         _ = 3^(s.nodeCount - 1 : ℝ) := by
           rw [←Real.rpow_natCast 3]
           rw [←Real.rpow_add (show 0 < 3 by simp)]
