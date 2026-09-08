@@ -29,9 +29,10 @@ def staticCost [LinearOrder α] (t : Tree α) (X : Fin m → α) : ℕ :=
 private noncomputable def static_weight [LinearOrder α] (s : Tree α) (q : α) : ℝ :=
     3^(s.nodeCount - searchPathLen s q : ℝ)
 
-/-private lemma static_weight_pos [LinearOrder α] (s : Tree α) (q : α) : static_weight s q > 0 := by
-  simp [static_weight]-/
+private lemma static_weight_pos [LinearOrder α] (s : Tree α) (q : α) : static_weight s q > 0 := by
+  simp only [static_weight, gt_iff_lt]; apply Real.rpow_pos_of_pos (by simp)
 
+-- TODO?
 private lemma static_weight_lb [LinearOrder α] (s : Tree α) (q : α) (hq : q ∈ s) :
     1 ≤ static_weight s q := by
   simp only [static_weight, hq]
@@ -48,7 +49,7 @@ private lemma static_weight_left [LinearOrder α] (v : α) (l r : Tree α) (q : 
   simp only [static_weight, nodeCount_node, Nat.cast_add, Nat.cast_one]
   rw [←Real.rpow_add (by simp)]
   apply (Real.rpow_right_inj (by simp) (by simp)).mpr
-  simp [searchPathLen, hqv]; linarith
+  simp [searchPathLen_left v l r q hqv]; linarith
 
 private lemma static_weight_size_left [LinearOrder α]
     (v : α) (l r : Tree α) (hbst : (node v l r).IsBST) :
@@ -71,12 +72,42 @@ private lemma static_weight_size_left [LinearOrder α]
       simp [this, static_weight_left v l r x hxv]; linarith
   exact this l.toKeyList (by rfl)
 
+/-
+TODO: Lots of duplicated code. Maybe some mirror-IsBST lemma with reverse linear order could help?
+-/
+private lemma searchPathLen_right [LinearOrder α] (v : α) (l r : Tree α) (q : α) (hqv : v < q) :
+    searchPathLen (node v l r) q = 1 + searchPathLen r q := by
+  simp only [searchPathLen, hqv, ↓reduceIte, ite_eq_right_iff, Nat.add_left_cancel_iff]
+  intro h'; apply le_of_lt at h'; apply not_le_of_gt at hqv; contradiction
+
+private lemma static_weight_right [LinearOrder α] (v : α) (l r : Tree α) (q : α) (hqv : v < q) :
+    let s := node v l r
+    static_weight s q = 3^(s.nodeCount - r.nodeCount-1 : ℝ) * static_weight r q := by
+  simp only [static_weight, nodeCount_node, Nat.cast_add, Nat.cast_one]
+  rw [←Real.rpow_add (by simp)]
+  apply (Real.rpow_right_inj (by simp) (by simp)).mpr
+  simp [searchPathLen_right v l r q hqv]; linarith
+
 private lemma static_weight_size_right [LinearOrder α]
     (v : α) (l r : Tree α) (hbst : (node v l r).IsBST) :
     let s := node v l r
     size (static_weight s) r = 3^(s.nodeCount - r.nodeCount-1 : ℝ) * size (static_weight r) r := by
   simp only [size_from_toKeyList]
-  sorry
+  have hrv : ∀ x ∈ r.toKeyList, v < x := by
+    intro x hx
+    apply gt_of_IsBST_right l v r x hbst
+    exact mem_iff_mem_toKeyList.mpr hx
+  have : ∀ xs, xs.Sublist r.toKeyList → (List.map (static_weight (l △[v] r)) xs).sum =
+      3 ^ ((l △[v] r).nodeCount - ↑r.nodeCount - 1 : ℝ) * (List.map (static_weight r) xs).sum := by
+    intro xs
+    induction xs with
+    | nil => simp
+    | cons x xs ih =>
+      intro hsub
+      have hxv : v < x := by apply hrv; exact List.mem_of_cons_sublist hsub
+      have := ih (List.sublist_of_cons_sublist hsub)
+      simp [this, static_weight_right v l r x hxv]; linarith
+  exact this r.toKeyList (by rfl)
 
 
 -- TODO: Lots of annoying casts and calculations
@@ -118,104 +149,74 @@ private lemma static_weight_size_self_ub [LinearOrder α] (s : Tree α) (hbst : 
       simp only [this]; apply mul_comm
     linarith
 
+-- TODO: Move?
+lemma size_le_size_of_toKeyList_Sublist {w : α → ℝ} (hw : FnNonneg w)
+    {s t : Tree α} (h : s.toKeyList.Sublist t.toKeyList) :
+    size w s ≤ size w t := by
+  rw [size_from_toKeyList, size_from_toKeyList]
+  have : (List.map w s.toKeyList).Sublist (List.map w t.toKeyList) := by
+    exact List.Sublist.map w h
+  apply List.Sublist.sum_le_sum
+  · exact List.Sublist.map w h
+  · intro x hx
+    have := List.mem_map.mp hx
+    rcases this with ⟨y, _, hy⟩
+    rw [←hy]; exact hw y
 
+-- TODO: Need variant with t.toKeyList.Sublist s.toKeyList
+private lemma static_weight_size_ub [LinearOrder α] (s t : Tree α)
+    (hst : t.toKeyList.Sublist s.toKeyList) (hbst : s.IsBST) :
+    size (static_weight s) t ≤ 3 ^ s.nodeCount := by
+  have := size_le_size_of_toKeyList_Sublist (FnNonneg_of_FnPos (static_weight_pos s)) hst
+  have := static_weight_size_self_ub s hbst
+  linarith
 
-private lemma static_weight_size_ub [LinearOrder α]
-    (s t : Tree α) (hst : s.toKeyList = t.toKeyList) :
-    size (static_weight s) t ≤ 3^(s.nodeCount) := by
-  rw [size_from_toKeyList, ←hst, ←size_from_toKeyList]
-  apply static_weight_size_self_ub
+private lemma static_weight_rank_ub [LinearOrder α] (s t : Tree α)
+    (hst : t.toKeyList.Sublist s.toKeyList) (hbst : s.IsBST) :
+    rank (static_weight s) t ≤ s.nodeCount * Real.logb 2 3 := by
+  unfold rank; cases t with
+  | nil =>
+    simp only; apply mul_nonneg (by simp)
+    · exact Real.logb_nonneg (by simp) (by simp)
+  | node v l r =>
+    simp only
+    rw [←Real.logb_pow 2 3]; apply logb_mono
+    · apply size_pos_of_non_nil (static_weight_pos s)
+      simp
+    · exact static_weight_size_ub s _ hst hbst
 
+private lemma static_weight_φ_ub_aux [LinearOrder α] (s t : Tree α)
+    (hst : t.toKeyList.Sublist s.toKeyList) (hbst : s.IsBST) :
+    φ (static_weight s) t ≤ s.nodeCount * t.nodeCount * Real.logb 2 3 := by
+  induction t with
+  | nil => simp
+  | node v l r lih rih =>
+    simp [φ]
+    have : l.toKeyList.Sublist s.toKeyList := by
+      have : l.toKeyList.Sublist (node v l r).toKeyList := by simp [toKeyList]
+      exact List.Sublist.trans this hst
+    simp [this] at lih
+    have : r.toKeyList.Sublist s.toKeyList := by
+      have : r.toKeyList.Sublist (node v l r).toKeyList := by simp [toKeyList]
+      exact List.Sublist.trans this hst
+    simp [this] at rih
+    have := static_weight_rank_ub s (node v l r) hst hbst
+    linarith
 
+private lemma static_weight_φ_ub [LinearOrder α] (s t : Tree α)
+    (hst : s.toKeyList = t.toKeyList) (hbst : s.IsBST) :
+    φ (static_weight s) t ≤ s.nodeCount^2 * Real.logb 2 3 := by
+  calc φ (static_weight s) t ≤ s.nodeCount * t.nodeCount * Real.logb 2 3 := by
+        apply static_weight_φ_ub_aux
+        · rw [hst]
+        · exact hbst
+    _ ≤ s.nodeCount^2 * Real.logb 2 3 := by
+      have : s.nodeCount = t.nodeCount := by
+        simp [nodeCount_of_toKeyList, hst]
+      rw [pow_two, this]
 
 
 --------------------
-
-private lemma static_weight_left [LinearOrder α] (v : α) (l r : Tree α)
-    (hbst : (node v l r).IsBST) (q : α) :
-    static_weight l q ≤ 3 * static_weight (node v l r) q := by
-  simp only [static_weight, nodeCount_node, Nat.cast_add, Nat.cast_one, searchPathLen]
-  have h3: ∀ x : ℝ, (3 : ℝ) ^ (x + 1) = 3 * 3 ^ x := by
-    intro x;  rw [Real.rpow_add (by simp)]; linarith
-  if h : q ∈ l then
-    have : q < v := lt_of_IsBST_left l v r q hbst h
-    simp only [h, ↓reduceIte, mem_node_iff, true_or, or_true, this, Nat.cast_add, Nat.cast_one,
-      ge_iff_le]
-    rw [←h3]; apply Real.rpow_le_rpow_of_exponent_le (by simp); linarith
-  else
-    simp only [h, ↓reduceIte, mem_node_iff, false_or, Nat.cast_ite, Nat.cast_add, Nat.cast_one,
-      mul_ite, mul_zero, ge_iff_le]
-    if h' : q = v ∨ q ∈ r then
-      simp only [h', ↓reduceIte, Nat.ofNat_pos, mul_nonneg_iff_of_pos_left]
-      apply Real.rpow_nonneg (by simp)
-    else
-      simp [h']
-
-private lemma static_weight_size_left [LinearOrder α]
-    (v : α) (l r : Tree α) (hbst : (node v l r).IsBST) :
-    size (static_weight l) l ≤ 3 * size (static_weight (node v l r)) l := by
-  simp only [size_from_toKeyList]
-  --have hbst' : l.IsBST := by exact IsBST_left_of_ISBST l v r hbst
-  induction l.toKeyList with
-  | nil => simp
-  | cons x xs ih =>
-    have := static_weight_left v l r hbst x
-    simp; linarith [this, ih]
-
--- TODO: awful, awful duplication
-private lemma searchPathLen_right [LinearOrder α] (v : α) (l r : Tree α) (q : α) (hqv : v < q) :
-    searchPathLen (node v l r) q = 1 + searchPathLen r q := by
-  simp [searchPathLen, hqv, Std.not_gt_of_lt hqv]
-
-private lemma static_weight_right [LinearOrder α] (v : α) (l r : Tree α)
-    (hbst : (node v l r).IsBST) (q : α) :
-    static_weight r q ≤ 3 * static_weight (node v l r) q := by
-  simp only [static_weight, nodeCount_node, Nat.cast_add, Nat.cast_one, searchPathLen]
-  have h3: ∀ x : ℝ, (3 : ℝ) ^ (x + 1) = 3 * 3 ^ x := by
-    intro x;  rw [Real.rpow_add (by simp)]; linarith
-  if h : q ∈ r then
-    have hvq : v < q := gt_of_IsBST_right l v r q hbst h
-    have hvq' : ¬ q < v := Std.not_gt_of_lt hvq
-    simp only [h, ↓reduceIte, mem_node_iff, or_true, hvq', hvq, Nat.cast_add, Nat.cast_one,
-      ge_iff_le]
-    rw [←h3]; apply Real.rpow_le_rpow_of_exponent_le (by simp); linarith
-  else
-    simp only [h, ↓reduceIte, mem_node_iff, Nat.cast_ite, Nat.cast_add, Nat.cast_one,
-      mul_ite, mul_zero, ge_iff_le]
-    if h' : q = v ∨ q ∈ l then
-      simp only [or_false, h', ↓reduceIte, Nat.ofNat_pos, mul_nonneg_iff_of_pos_left]
-      apply Real.rpow_nonneg (by simp)
-    else
-      simp [h']
-
-private lemma static_weight_size_right [LinearOrder α]
-    (v : α) (l r : Tree α) (hbst : (node v l r).IsBST) :
-    size (static_weight r) r ≤ 3 * size (static_weight (node v l r)) r := by
-  simp only [size_from_toKeyList]
-  induction r.toKeyList with
-  | nil => simp
-  | cons x xs ih =>
-    have := static_weight_right v l r hbst x
-    simp; linarith [this, ih]
-
-private lemma size_sum (t : Tree α) (w : α → ℝ) :
-    size w t = ∑ x ∈ t.toKeyList, w x := sorry
-
-private lemma static_weight_size_ub [LinearOrder α] (s t : Tree α) :
-    size (static_weight s) s ≤ 3^s.nodeCount := by
-  induction s with
-  | nil => simp
-  | node v l r lih rih =>
-    simp
-    have : size (static_weight (node v l r)) l = ?
-
-private lemma static_size_lb [LinearOrder α] (s t : Tree α) (ht : t ≠ nil) :
-    3^(-s.nodeCount : ℝ) ≤ size (static_weight s) t := by
-  have hw : FnNonneg (static_weight s) := by intro x; linarith [static_weight_pos s x]
-  cases t with
-  | nil => contradiction
-  | node v l r =>
-    simp only [size_node]; linarith [static_weight_lb s v, size_nonneg hw l, size_nonneg hw r]
 
 private lemma static_rank_lb [LinearOrder α] (s t : Tree α) (ht : t ≠ nil) :
     -s.nodeCount * (Real.logb 2 3) ≤ rank (static_weight s) t := by

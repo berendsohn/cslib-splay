@@ -62,6 +62,12 @@ lemma toKeyList_of_empty {t : Tree α} (h : toKeyList t = []) : (t = nil) := by
   · simp
   · simp [List.append_assoc] at h
 
+lemma nodeCount_of_toKeyList (t : Tree α) :
+    (t.nodeCount = t.toKeyList.length) := by
+  induction t with
+  | nil => simp
+  | node v l r lih rih => simp [lih, rih]; linarith
+
 
 /-- Number of nodes on the search path for `q` in `t`. Zero on the empty
 tree; on a node this counts the root plus (if `q ≠ k`) the search path
