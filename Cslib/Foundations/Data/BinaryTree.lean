@@ -320,16 +320,17 @@ private lemma IsBSTAux_children_none [LinearOrder α] (t : Tree α) (x y : Optio
     rcases rih (some k) y h2 with ⟨_,_,_⟩
     simp only [IsBSTAux_node, Option.elim_none, true_and]; split_ands; all_goals assumption
 
+-- TODO: Less explicit arguments
 private lemma IsBST_of_IsBSTAux [LinearOrder α] (t : Tree α) (x y : Option α)
     (h : IsBSTAux t x y) : IsBST t := by
   unfold IsBST; rcases IsBSTAux_children_none t x y h with ⟨_,_,_⟩; assumption
 
-theorem IsBST_left_of_IsBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
+theorem IsBST_left_of_IsBST [LinearOrder α] {k : α} {l r : Tree α}
     (hbst : IsBST (l △[k] r)) : IsBST l := by
   simp only [IsBST, IsBSTAux_node, Option.elim_none, true_and] at hbst; rcases hbst with ⟨hl,_⟩
   exact IsBST_of_IsBSTAux l none (some k) hl
 
-theorem IsBST_right_of_IsBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
+theorem IsBST_right_of_IsBST [LinearOrder α] {k : α} {l r : Tree α}
     (hbst : IsBST (l △[k] r)) : IsBST r := by
   simp only [IsBST, IsBSTAux_node, Option.elim_none, true_and] at hbst; rcases hbst with ⟨_,hr⟩
   exact IsBST_of_IsBSTAux r (some k) none hr
@@ -392,17 +393,19 @@ theorem contains_iff_mem [LinearOrder α] {t : Tree α} (hbst : IsBST t) {q : α
     t.bstContains q ↔ q ∈ t :=
   ⟨contains_imp_mem, mem_imp_contains hbst⟩
 
-
-theorem lt_of_IsBST_left [LinearOrder α] (l : Tree α) (k : α) (r : Tree α) (q : α)
-    (hbst : IsBST (l △[k] r)) (hql : q ∈ l) : q < k := by
+/-- FOr BSTs, all keys in the left subtree are smaller than the root key. -/
+theorem lt_of_IsBST_left [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
+    (hbst : IsBST (l △[k] r)) {q : α} (hql : q ∈ l) : q < k := by
   simp only [IsBST_node] at hbst; rcases hbst with ⟨hl,_⟩
   exact IsBSTAux.lt_of_mem_ub hl hql
 
-theorem gt_of_IsBST_right [LinearOrder α] (l : Tree α) (k : α) (r : Tree α) (q : α)
-    (hbst : IsBST (l △[k] r)) (hqr : q ∈ r) : k < q := by
+/-- FOr BSTs, all keys in the right subtree are greater than the root key. -/
+theorem gt_of_IsBST_right [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
+    (hbst : IsBST (l △[k] r)) {q : α} (hqr : q ∈ r) : k < q := by
   simp only [IsBST_node] at hbst; rcases hbst with ⟨_,hr⟩
   exact IsBSTAux.gt_of_mem_lb hr hqr
 
+/-- A tree that contains something is not nil. -/
 theorem nonnil_of_mem {t : Tree α} (q : α) (hq : q ∈ t) : (t ≠ nil) := by
   by_contra
   have : q ∉ t := by rw[this]; exact not_mem_nil q
@@ -412,37 +415,248 @@ end BSTMembership
 
 section BSTMoreStuff -- TODO
 
-
-
-private lemma IsBSTAux_left_bound [LinearOrder α] {t : Tree α} (h : IsBSTAux t none (some b)) :
-    ∀ x ∈ t, x < b := by
-  intro x hx
-  induction t generalizing b with
-  | nil => contradiction
+private lemma IsBSTAux_from_IsBST_and_bounds [LinearOrder α] {t : Tree α} {lb ub : Option α}
+    (hbst : t.IsBST) (hlb : lb.elim True (∀ x, x ∈ t → · < x))
+    (hub : ub.elim True (∀ x, x ∈ t → x < ·)) : t.IsBSTAux lb ub := by
+  induction t generalizing lb ub with
+  | nil => simp
   | node v l r lih rih =>
-    simp at h; rcases h with ⟨hv, hl, hr⟩
-    have : (node v l r).IsBST := IsBST_of_IsBSTAux (node v l r) none (some b) h
-    have := mem_imp_contains this hx
-    simp [bstContains] at this; split at this
-    · apply lt_trans _ hv; assumption
+    simp only [IsBSTAux_node]; constructor
+    · cases lb with
+      | none => simp
+      | some b =>
+        simp only [Option.elim_some]
+        simp only [mem_node_iff, forall_eq_or_imp, Option.elim_some] at hlb
+        cases hlb; assumption
+    · constructor
+      · cases ub with
+        | none =>
+          simp
+        | some b =>
+          simp only [Option.elim_some]
+          simp only [mem_node_iff, forall_eq_or_imp, Option.elim_some] at hub
+          cases hub; assumption
+      · constructor
+        · apply lih
+          · exact IsBST_left_of_IsBST hbst
+          · cases lb with
+            | none => simp
+            | some b =>
+              simp only [Option.elim_some]; intro x hx
+              apply hlb; simp only [mem_node_iff]; right; left; assumption
+          · simp only [Option.elim_some]; intro x hx
+            exact lt_of_IsBST_left l v r hbst hx
+        · apply rih
+          · exact IsBST_right_of_IsBST hbst
+          · simp only [Option.elim_some]; intro x hx; exact gt_of_IsBST_right l v r hbst hx
+          · cases ub with
+            | none => simp
+            | some b =>
+              simp only [Option.elim_some]; intro x hx
+              apply hub; simp only [mem_node_iff]; right; right; assumption
+
+private lemma IsBST_and_bounds_from_IsBSTAux [LinearOrder α]
+    {t : Tree α} {lb ub : Option α} (hbst : t.IsBSTAux lb ub) :
+    t.IsBST ∧ lb.elim True (∀ x, x ∈ t → · < x) ∧ ub.elim True (∀ x, x ∈ t → x < ·) := by
+  induction t generalizing lb ub with
+  | nil => cases lb <;> cases ub <;> simp [IsBST, Option.elim]
+  | node v l r lih rih =>
+    constructor
+    · exact IsBST_of_IsBSTAux _ _ _ hbst
+    · constructor
+      · cases lb with
+      | none => simp
+      | some b =>
+        simp only [IsBSTAux_node, Option.elim_some] at hbst
+        rcases hbst with ⟨hbv, _, hlbst, hrbst⟩
+        simp only [mem_node_iff, forall_eq_or_imp, Option.elim_some]
+        constructor
+        · assumption
+        · intro x hx; rcases hx with hx | hx
+          · exact IsBSTAux.gt_of_mem_lb hlbst hx
+          · have := rih hrbst
+            simp only [Option.elim_some] at this; rcases this with ⟨_, this, _⟩
+            exact lt_trans hbv (this x hx)
+      · cases ub with
+      | none => simp
+      | some b =>
+        simp only [IsBSTAux_node, Option.elim_some] at hbst
+        rcases hbst with ⟨_, hbv, hlbst, hrbst⟩
+        simp only [mem_node_iff, forall_eq_or_imp, Option.elim_some]
+        constructor
+        · assumption
+        · intro x hx; rcases hx with hx | hx
+          · have := lih hlbst
+            simp only [Option.elim_some] at this; rcases this with ⟨_, _, this⟩
+            exact lt_trans (this x hx) hbv
+          · exact IsBSTAux.lt_of_mem_ub hrbst hx
+
+private lemma ISBSTAux_iff_IsBST_and_bounds [LinearOrder α] (t : Tree α) (lb ub : Option α) :
+    t.IsBSTAux lb ub ↔
+    t.IsBST ∧ lb.elim True (∀ x, x ∈ t → · < x) ∧ ub.elim True (∀ x, x ∈ t → x < ·) := by
+  constructor
+  · intro h; exact IsBST_and_bounds_from_IsBSTAux h
+  · intro h; rcases h with ⟨hbst, hlb, hub⟩; exact IsBSTAux_from_IsBST_and_bounds hbst hlb hub
+
+
+private lemma List.sortedLT_cons [LinearOrder α] (x : α) (ys : List α) :
+    (x :: ys).SortedLT ↔ (∀ y ∈ ys.head?, x < y) ∧ ys.SortedLT := by
+  rw [List.sortedLT_iff_isChain]
+  rw [List.isChain_cons]
+  rw [←List.sortedLT_iff_isChain]
+
+private lemma List.sortedGT_cons [LinearOrder α] (x : α) (ys : List α) :
+    (x :: ys).SortedGT ↔ (∀ y ∈ ys.head?, y < x) ∧ ys.SortedGT := by
+  rw [List.sortedGT_iff_isChain]
+  rw [List.isChain_cons]
+  rw [←List.sortedGT_iff_isChain]
+
+private lemma List.sortedLT_append [LinearOrder α] (xs ys : List α) :
+    (xs ++ ys).SortedLT ↔ xs.SortedLT ∧ ys.SortedLT ∧ ∀ x ∈ xs.getLast?, ∀ y ∈ ys.head?, x < y := by
+  rw [List.sortedLT_iff_isChain]
+  rw [List.isChain_append]
+  rw [←List.sortedLT_iff_isChain, ←List.sortedLT_iff_isChain]
+
+private lemma List.sortedLT_append_cons [LinearOrder α] (xs : List α) (y : α) (zs : List α) :
+    (xs ++ y :: zs).SortedLT ↔
+    xs.SortedLT ∧ zs.SortedLT ∧ (∀ x ∈ xs.getLast?, x < y) ∧ ∀ z ∈ zs.head?, y < z := by
+  rw [List.sortedLT_append, List.sortedLT_cons]
+  rw [and_assoc] --TODO: Could some congruence thing work better here?
+  constructor
+  · intro h; rcases h with ⟨hx, hyz, hz, hxy⟩
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · assumption
+    · assumption
+    · simp only [Option.mem_def, List.head?_cons, Option.some.injEq, forall_eq'] at hxy
+      intro x hx; exact lt_of_lt_of_eq (hxy x hx) rfl
+    · assumption
+  · intro h; rcases h with ⟨hx, hz, hxy, hyz⟩
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · assumption
+    · assumption
+    · assumption
+    · intro x hx y' hy'
+      simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hy'
+      exact lt_of_lt_of_eq (hxy x hx) hy'
+
+private lemma List.sortedLT_all_gt_iff_head?_gt [LinearOrder α] (x : α) (ys : List α)
+    (hsorted : ys.SortedLT) : -- TODO: Need hsorted as part of iff
+    (∀ y ∈ ys, x < y) ↔ ∀ y ∈ ys.head?, x < y := by
+  induction ys generalizing x with
+  | nil => simp
+  | cons y ys ih =>
+    constructor
+    · intro h
+      simp only [List.head?_cons, Option.mem_def, Option.some.injEq, forall_eq']
+      simp only [List.mem_cons, forall_eq_or_imp] at h; rcases h; assumption
+    · intro h z hz
+      simp only [List.head?_cons, Option.mem_def, Option.some.injEq, forall_eq',
+        List.mem_cons] at h hz
+      rcases hz with hz | hz
+      · simp [h, hz]
+      · rw [List.sortedLT_cons] at hsorted; rcases hsorted with ⟨hyhead, yssort⟩
+        have := (ih y yssort).mpr hyhead
+        exact lt_trans h (this z hz)
+
+-- TODO: Almost exact copy of the above
+private lemma List.sortedGT_all_lt_iff_head?_lt [LinearOrder α] (x : α) (ys : List α)
+    (hsorted : ys.SortedGT) :
+    (∀ y ∈ ys, y < x) ↔ ∀ y ∈ ys.head?, y < x := by
+  induction ys generalizing x with
+  | nil => simp
+  | cons y ys ih =>
+    constructor
+    · intro h
+      simp only [List.head?_cons, Option.mem_def, Option.some.injEq, forall_eq']
+      simp only [List.mem_cons, forall_eq_or_imp] at h; rcases h; assumption
+    · intro h z hz
+      simp only [List.head?_cons, Option.mem_def, Option.some.injEq, forall_eq',
+        List.mem_cons] at h hz
+      rcases hz with hz | hz
+      · simp [h, hz]
+      · rw [List.sortedGT_cons] at hsorted; rcases hsorted with ⟨hyhead, yssort⟩
+        have := (ih y yssort).mpr hyhead
+        exact lt_trans (this z hz) h
+
+private lemma List.sortedLT_all_lt_iff_getLast?_lt [LinearOrder α] (xs : List α) (y : α)
+    (hsorted : xs.SortedLT) :
+    (∀ x ∈ xs, x < y) ↔ ∀ x ∈ xs.getLast?, x < y := by
+  rw [←List.sortedGT_reverse] at hsorted
+  rw [←List.head?_reverse]
+  rw [←List.sortedGT_all_lt_iff_head?_lt y xs.reverse hsorted]
+  constructor
+  · intro h y' hy'; rw[List.mem_reverse] at hy'; exact lt_of_lt_of_eq (h y' hy') rfl
+  · intro h x hx; have := List.mem_reverse.mpr hx; exact lt_of_lt_of_eq (h x this) rfl
+
+
+private lemma IsBSTAux_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
+    t.IsBSTAux lb ub ↔
+    t.toKeyList.SortedLT
+      ∧ lb.elim True (∀ x, x ∈ t.toKeyList → · < x)
+      ∧ ub.elim True (∀ x, x ∈ t.toKeyList → x < ·) := by
+  induction t generalizing lb ub with
+  | nil => simp [List.sortedLT_iff_isChain]; cases lb <;> cases ub <;> simp
+  | node v l r lih rih =>
+    simp only [IsBSTAux_node]
+    rw [lih, rih]
+    cases lb with
+    | none => cases ub with
+      | none =>
+        simp only [Option.elim_none, Option.elim_some, true_and, and_true, toKeyList_node,
+          List.append_assoc, List.cons_append, List.nil_append, List.mem_append, List.mem_cons,
+          and_self]
+        rw [List.sortedLT_append_cons]
+        rw [List.sortedLT_all_gt_iff_head?_gt _ _]
+        rw [List.sortedLT_all_lt_iff_getLast?_lt]
+        constructor
+        · tauto
+        · tauto
+      | some ub =>
+        simp
+        rw [List.sortedLT_append_cons]
+        rw [List.sortedLT_all_gt_iff_head?_gt]
+        rw [List.sortedLT_all_lt_iff_getLast?_lt]
+        constructor
+        · simp only [and_imp, and_assoc]
+          intro hvub hlsort hllast hrsort hrhead hrub
+          refine ⟨?_, ?_, ?_, ?_, ?_⟩
+          · assumption
+          · assumption
+          · assumption
+          · assumption
+          · intro x hx; rcases hx with (hx | hx | hx)
+            · have := (List.sortedLT_all_lt_iff_getLast?_lt l.toKeyList v hlsort).mpr hllast x hx
+              exact lt_trans this hvub
+            · exact lt_of_eq_of_lt hx hvub
+            · exact lt_of_lt_of_eq (hrub x hx) rfl
+        · sorry
+    | some lb => cases ub with
+      | none => sorry
+      | some ub =>
+        simp; constructor
+        · sorry
+        · sorry
+
+theorem IsBST_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
+    t.IsBST ↔ t.toKeyList.SortedLT := by
+  simp [IsBST]
+  induction t with
+  | nil => simp [List.sortedLT_iff_isChain]
+  | node v l r =>
+--private lemma head_lt_from_sorted [LinearOrder α] {x y : α} {xs : List α} :
+--    (x ∈ x)
+
+private lemma lt_from_sorted_last_lt [LinearOrder α] {x y : α} {xs : List α}
+    (hsort : xs.SortedLT) (hx : x ∈ xs) (hlt : ∀ z, z ∈ xs.getLast? → z < y) : x < y := by
+  induction xs with
+  | nil => contradiction
+  | cons z zs ih =>
+    rw [List.sortedLT_iff_isChain, List.isChain_cons] at hsort
+    rcases hsort with ⟨lhead, hsort'⟩
+    rw [←List.sortedLT_iff_isChain] at hsort'
+    have := ih hsort'
+    simp at hx; rcases hx with h | h
     ·
-
-      have hlbst := IsBST_of_IsBSTAux l none (some v) hl
-      have : x ∈ l := by apply (contains_iff_mem hlbst).mp this
-      have := lih hl this
-
--- TODO
-theorem left_lt_key_of_IsBST [LinearOrder α] (l : Tree α) (k : α) (r : Tree α)
-    (hbst : IsBST (l △[k] r)) : ∀ v ∈ l, v ≤ k := by
-  induction l generalizing k r with
-  | nil => sorry
-  | node u l' r' lih _ =>
-    simp at hbst
-    have := IsBST_left_of_IsBST (node u l' r') k r hbst
-    have := lih u r' this
-
-  intro v
-  have : l.IsBSTAux none (some k) := by simp at hbst; simp [hbst]
 
 
 theorem IsBST_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
@@ -450,9 +664,57 @@ theorem IsBST_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
   induction t with
   | nil => simp [IsBST]; apply List.sortedLT_iff_pairwise.mpr; simp
   | node v l r lih rih =>
+    rw [List.sortedLT_iff_isChain]
+    simp [toKeyList]; rw [List.isChain_split]
+    apply and_congr
+    · constructor
+      · intro h
+        apply List.isChain_append.mpr; constructor
+        · apply List.sortedLT_iff_isChain.mp
+          exact lih.mp (IsBST_of_IsBSTAux _ _ _ h)
+        · constructor
+          · simp
+          · intro x hx y hy
+            simp at hy
+            rw [←hy]
+            have := List.mem_of_getLast? hx
+            apply mem_iff_mem_toKeyList.mpr at this
+            exact IsBSTAux.lt_of_mem_ub h this
+      · intro h
+        apply IsBSTAux_from_IsBST_and_bounds
+        · apply lih.mpr
+          rw [List.sortedLT_iff_isChain]
+          exact List.IsChain.left_of_append h
+        · simp
+        · simp; intro x hx
+          rw [←List.sortedLT_iff_isChain, ←List.sortedGT_reverse] at h
+          simp at h
+          rw [List.sortedGT_iff_isChain] at h
+          rw [List.isChain_cons] at h
+          rcases h with ⟨h1, h2⟩
+          rw [←List.sortedGT_iff_isChain, List.sortedGT_reverse] at h2
+          simp at h1
+
+          #check
+          rw [mem_iff_mem_toKeyList] at hx
+          simp [List.isChain_append] at h; rcases h with ⟨hlchain, hlv⟩
+
+    · constructor
+      · intro h
+        simp [List.isChain_cons]; constructor
+        · intro y hy
+          have := List.mem_of_head? hy
+          apply mem_iff_mem_toKeyList.mpr at this
+          exact IsBSTAux.gt_of_mem_lb h this
+        · apply List.sortedLT_iff_isChain.mp
+          exact rih.mp (IsBST_of_IsBSTAux _ _ _ h)
+      · intro h
+        sorry
+        rw [←List.sortedLT_iff_isChain] at h
+        simp [IsBSTAux]
     constructor
     · intro h
-      simp; apply List.sortedLT_iff_isChain.mpr
+      simp
       apply List.isChain_split.mpr; constructor
       · apply List.isChain_append.mpr; constructor
         · apply List.sortedLT_iff_isChain.mp
@@ -462,7 +724,17 @@ theorem IsBST_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
           · intro x hx y hy
             simp at hy
             rw [←hy]
+            have := List.mem_of_getLast? hx
+            apply mem_iff_mem_toKeyList.mpr at this
+            exact lt_of_IsBST_left l v r h this
       · simp [List.isChain_cons]; constructor
+        · intro y hy
+          have := List.mem_of_head? hy
+          apply mem_iff_mem_toKeyList.mpr at this
+          exact gt_of_IsBST_right l v r h this
+        · apply List.sortedLT_iff_isChain.mp
+          exact rih.mp (IsBST_right_of_IsBST l v r h)
+    · simp
 
 theorem IsBST_of_IsBST_eq_toKeyList [LinearOrder α] {s t : Tree α}
     (hkeys : s.toKeyList = t.toKeyList) (hsbst : s.IsBST) : t.IsBST := by

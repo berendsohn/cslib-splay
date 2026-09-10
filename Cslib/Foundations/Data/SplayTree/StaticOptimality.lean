@@ -66,7 +66,7 @@ private lemma static_weight_size_left [LinearOrder α]
   simp only [size_from_toKeyList]
   have hlv : ∀ x ∈ l.toKeyList, x < v := by
     intro x hx
-    apply lt_of_IsBST_left l v r x hbst
+    apply lt_of_IsBST_left l v r hbst
     exact mem_iff_mem_toKeyList.mpr hx
   have : ∀ xs, xs.Sublist l.toKeyList → (List.map (static_weight (l △[v] r)) xs).sum =
       3 ^ ((l △[v] r).nodeCount - ↑l.nodeCount - 1 : ℝ) * (List.map (static_weight l) xs).sum := by
@@ -103,7 +103,7 @@ private lemma static_weight_size_right [LinearOrder α]
   simp only [size_from_toKeyList]
   have hrv : ∀ x ∈ r.toKeyList, v < x := by
     intro x hx
-    apply gt_of_IsBST_right l v r x hbst
+    apply gt_of_IsBST_right l v r hbst
     exact mem_iff_mem_toKeyList.mpr hx
   have : ∀ xs, xs.Sublist r.toKeyList → (List.map (static_weight (l △[v] r)) xs).sum =
       3 ^ ((l △[v] r).nodeCount - ↑r.nodeCount - 1 : ℝ) * (List.map (static_weight r) xs).sum := by
