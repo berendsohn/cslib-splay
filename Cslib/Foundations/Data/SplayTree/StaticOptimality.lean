@@ -133,7 +133,7 @@ private lemma static_weight_size_self_ub [LinearOrder α] (s : Tree α) (hbst : 
           = 3^(s.nodeCount - l.nodeCount-1 : ℝ) * size (static_weight l) l := by
             exact static_weight_size_left v l r hbst
         _ ≤ 3^(s.nodeCount - l.nodeCount-1 : ℝ) * 3 ^ l.nodeCount := by
-            gcongr; apply lih; exact IsBST_left_of_IsBST l v r hbst
+            gcongr; apply lih; exact IsBST_left_of_IsBST hbst
         _ = 3^(s.nodeCount - 1 : ℝ) := by
           rw [←Real.rpow_natCast 3]
           rw [←Real.rpow_add (show 0 < 3 by simp)]
@@ -145,7 +145,7 @@ private lemma static_weight_size_self_ub [LinearOrder α] (s : Tree α) (hbst : 
           = 3^(s.nodeCount - r.nodeCount-1 : ℝ) * size (static_weight r) r := by
             exact static_weight_size_right v l r hbst
         _ ≤ 3^(s.nodeCount - r.nodeCount-1 : ℝ) * 3 ^ r.nodeCount := by
-            gcongr; apply rih; exact IsBST_right_of_IsBST l v r hbst
+            gcongr; apply rih; exact IsBST_right_of_IsBST hbst
         _ = 3^(s.nodeCount - 1 : ℝ) := by
           rw [←Real.rpow_natCast 3]
           rw [←Real.rpow_add (show 0 < 3 by simp)]
@@ -223,19 +223,14 @@ private lemma static_weight_φ_ub [LinearOrder α] (s t : Tree α)
         simp [nodeCount_from_toKeyList, hst]
       rw [pow_two, this]
 
--- TODO: Should hbst2 follow from hkeys and hbst1?
-/--
-Splay performs as well as any static tree `s`, with any initial tree `init`, up to constant factors
-and an O(n²) additive term.
-Assumes that all queries are successful.
--/
-theorem splay_tree_static_optimality [LinearOrder α] (m : ℕ)
+/-- This variant requires an extra assumption hsbst, even though that is implied by the other
+assumptions -/
+private lemma splay_tree_static_optimality' [LinearOrder α] (m : ℕ)
     (init s : Tree α) (hkeys : s.toKeyList = init.toKeyList)
     (hinitbst : init.IsBST) (hsbst : s.IsBST)
     (X : Fin m → α) (hX : ∀ i, X i ∈ init) :
     let n := s.nodeCount
-    splay.sequenceCost init X ≤ m + (Real.logb 2 3) * (3 * staticCost s X + n ^ 2)
-    := by
+    splay.sequenceCost init X ≤ m + (Real.logb 2 3) * (3 * staticCost s X + n ^ 2) := by
   by_cases hinit : init = nil
   · have : s = nil := by apply toKeyList_of_empty; simp [hkeys, hinit]
     have hsnc : s.nodeCount = 0 := by simp [this]
@@ -274,6 +269,20 @@ theorem splay_tree_static_optimality [LinearOrder α] (m : ℕ)
         rw [mul_comm]
         rw [Real.logb_rpow_eq_mul_logb_of_pos (by simp)]
         linarith
+
+/--
+Splay performs as well as any static tree `s`, with any initial tree `init`, up to constant factors
+and an O(n²) additive term.
+Assumes that all queries are successful.
+-/
+theorem splay_tree_static_optimality [LinearOrder α] (m : ℕ)
+    (init s : Tree α) (hkeys : s.toKeyList = init.toKeyList)
+    (hinitbst : init.IsBST)
+    (X : Fin m → α) (hX : ∀ i, X i ∈ init) :
+    let n := s.nodeCount
+    splay.sequenceCost init X ≤ m + (Real.logb 2 3) * (3 * staticCost s X + n ^ 2) := by
+  have hsbst : s.IsBST := by exact IsBST_of_toKeyList_eq hkeys hinitbst
+  exact splay_tree_static_optimality' m init s hkeys hinitbst hsbst X hX
 
 end Weighted
 

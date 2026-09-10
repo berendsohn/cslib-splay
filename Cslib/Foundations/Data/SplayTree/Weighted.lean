@@ -324,15 +324,11 @@ private theorem φ_zigzig_left (hw : FnLbOne w)
     apply rank_eq_of_toKeyList_eq
     unfold s'; simp only [toKeyList_rotateRight]
   -- The calculation
-  --have : φ w s' - φ w s = rank w (node b t2 x') + rank w x' - rank w (node b x t3) - rank w x := by
-  --  linarith
   have : rank w (node b t2 x') ≤ rank w s' := by
     unfold s' s rotateRight x x'; simp only; apply rank_le_of_size_le hw
     exact size_ge_right_child (FnNonneg_of_FnLbOne hw) _ _ _
   have : rank w x ≤ rank w (node b x t3) := by
     apply rank_le_of_size_le hw; apply size_ge_left_child (FnNonneg_of_FnLbOne hw)
-  --have : φ w s' - φ w s ≤ rank w s' + rank w x' - 2 * rank w x := by
-  --  linarith
   have : rank w x + rank w x' ≤ 2 * rank w s' - 2 := by
     simp only [rank, reduceCtorEq, imp_self, (show s' ≠ nil by simp [s', rotateRight])]
     apply log_sum_le
@@ -376,7 +372,7 @@ private theorem φ_zigzag_left (hw : FnLbOne w)
   -- Total rank stays the same
   have : rank w s = rank w s' := by
     apply rank_eq_of_toKeyList_eq
-    unfold s'; simp [toKeyList_rotateRight]
+    unfold s'; simp
   -- The calculation
   have : φ w s' - φ w s = (
       rank w (node a t1 t2) + rank w (node c t3 t4) - rank w (node c x t4) - rank w x ) := by

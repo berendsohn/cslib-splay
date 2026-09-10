@@ -558,6 +558,10 @@ private lemma List.sortedLT_all_gt_iff_head?_gt [LinearOrder α] (x : α) (ys : 
         have := (ih y yssort).mpr hyhead
         exact lt_trans h (this z hz)
 
+private lemma List.sortedLT_all_gt_iff_head?_gt' [LinearOrder α] (x : α) (ys : List α) :
+    (∀ y ∈ ys, x < y) ∧ ys.SortedLT ↔ (∀ y ∈ ys.head?, x < y) ∧ ys.SortedLT
+  := and_congr_left (sortedLT_all_gt_iff_head?_gt x ys)
+
 -- TODO: Almost exact copy of the above
 private lemma List.sortedGT_all_lt_iff_head?_lt [LinearOrder α] (x : α) (ys : List α)
     (hsorted : ys.SortedGT) :
@@ -588,8 +592,20 @@ private lemma List.sortedLT_all_lt_iff_getLast?_lt [LinearOrder α] (xs : List �
   · intro h y' hy'; rw[List.mem_reverse] at hy'; exact lt_of_lt_of_eq (h y' hy') rfl
   · intro h x hx; have := List.mem_reverse.mpr hx; exact lt_of_lt_of_eq (h x this) rfl
 
+private lemma List.sortedLT_all_lt_iff_getLast?_lt' [LinearOrder α] (xs : List α) (y : α) :
+    (∀ x ∈ xs, x < y) ∧ xs.SortedLT ↔ (∀ x ∈ xs.getLast?, x < y) ∧ xs.SortedLT
+  := and_congr_left (List.sortedLT_all_lt_iff_getLast?_lt xs y)
 
-private lemma IsBSTAux_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
+private lemma List.sortedLT_append_cons' [LinearOrder α] (xs : List α) (y : α) (zs : List α) :
+    (xs ++ y :: zs).SortedLT ↔
+    xs.SortedLT ∧ zs.SortedLT ∧ (∀ x ∈ xs, x < y) ∧ ∀ z ∈ zs, y < z := by
+  rw [List.sortedLT_append_cons]
+  nth_rw 2 [←and_comm]; simp only [and_assoc]; rw [←List.sortedLT_all_gt_iff_head?_gt']
+  nth_rw 1 [←and_assoc]; nth_rw 2 [and_comm]; rw [←List.sortedLT_all_lt_iff_getLast?_lt']
+  tauto
+
+-- TODO: Lots of proof simplification possible with grind
+private lemma IsBSTAux_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} {lb ub : Option α} :
     t.IsBSTAux lb ub ↔
     t.toKeyList.SortedLT
       ∧ lb.elim True (∀ x, x ∈ t.toKeyList → · < x)
@@ -599,148 +615,39 @@ private lemma IsBSTAux_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
   | node v l r lih rih =>
     simp only [IsBSTAux_node]
     rw [lih, rih]
-    cases lb with
-    | none => cases ub with
-      | none =>
-        simp only [Option.elim_none, Option.elim_some, true_and, and_true, toKeyList_node,
-          List.append_assoc, List.cons_append, List.nil_append, List.mem_append, List.mem_cons,
-          and_self]
-        rw [List.sortedLT_append_cons]
-        rw [List.sortedLT_all_gt_iff_head?_gt _ _]
-        rw [List.sortedLT_all_lt_iff_getLast?_lt]
-        constructor
-        · tauto
-        · tauto
-      | some ub =>
-        simp
-        rw [List.sortedLT_append_cons]
-        rw [List.sortedLT_all_gt_iff_head?_gt]
-        rw [List.sortedLT_all_lt_iff_getLast?_lt]
-        constructor
-        · simp only [and_imp, and_assoc]
-          intro hvub hlsort hllast hrsort hrhead hrub
-          refine ⟨?_, ?_, ?_, ?_, ?_⟩
-          · assumption
-          · assumption
-          · assumption
-          · assumption
-          · intro x hx; rcases hx with (hx | hx | hx)
-            · have := (List.sortedLT_all_lt_iff_getLast?_lt l.toKeyList v hlsort).mpr hllast x hx
-              exact lt_trans this hvub
-            · exact lt_of_eq_of_lt hx hvub
-            · exact lt_of_lt_of_eq (hrub x hx) rfl
-        · sorry
-    | some lb => cases ub with
-      | none => sorry
-      | some ub =>
-        simp; constructor
-        · sorry
-        · sorry
-
-theorem IsBST_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
-    t.IsBST ↔ t.toKeyList.SortedLT := by
-  simp [IsBST]
-  induction t with
-  | nil => simp [List.sortedLT_iff_isChain]
-  | node v l r =>
---private lemma head_lt_from_sorted [LinearOrder α] {x y : α} {xs : List α} :
---    (x ∈ x)
-
-private lemma lt_from_sorted_last_lt [LinearOrder α] {x y : α} {xs : List α}
-    (hsort : xs.SortedLT) (hx : x ∈ xs) (hlt : ∀ z, z ∈ xs.getLast? → z < y) : x < y := by
-  induction xs with
-  | nil => contradiction
-  | cons z zs ih =>
-    rw [List.sortedLT_iff_isChain, List.isChain_cons] at hsort
-    rcases hsort with ⟨lhead, hsort'⟩
-    rw [←List.sortedLT_iff_isChain] at hsort'
-    have := ih hsort'
-    simp at hx; rcases hx with h | h
-    ·
-
-
-theorem IsBST_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
-    t.IsBST ↔ t.toKeyList.SortedLT := by
-  induction t with
-  | nil => simp [IsBST]; apply List.sortedLT_iff_pairwise.mpr; simp
-  | node v l r lih rih =>
-    rw [List.sortedLT_iff_isChain]
-    simp [toKeyList]; rw [List.isChain_split]
-    apply and_congr
-    · constructor
-      · intro h
-        apply List.isChain_append.mpr; constructor
-        · apply List.sortedLT_iff_isChain.mp
-          exact lih.mp (IsBST_of_IsBSTAux _ _ _ h)
-        · constructor
-          · simp
-          · intro x hx y hy
-            simp at hy
-            rw [←hy]
-            have := List.mem_of_getLast? hx
-            apply mem_iff_mem_toKeyList.mpr at this
-            exact IsBSTAux.lt_of_mem_ub h this
-      · intro h
-        apply IsBSTAux_from_IsBST_and_bounds
-        · apply lih.mpr
-          rw [List.sortedLT_iff_isChain]
-          exact List.IsChain.left_of_append h
-        · simp
-        · simp; intro x hx
-          rw [←List.sortedLT_iff_isChain, ←List.sortedGT_reverse] at h
-          simp at h
-          rw [List.sortedGT_iff_isChain] at h
-          rw [List.isChain_cons] at h
-          rcases h with ⟨h1, h2⟩
-          rw [←List.sortedGT_iff_isChain, List.sortedGT_reverse] at h2
-          simp at h1
-
-          #check
-          rw [mem_iff_mem_toKeyList] at hx
-          simp [List.isChain_append] at h; rcases h with ⟨hlchain, hlv⟩
-
-    · constructor
-      · intro h
-        simp [List.isChain_cons]; constructor
-        · intro y hy
-          have := List.mem_of_head? hy
-          apply mem_iff_mem_toKeyList.mpr at this
-          exact IsBSTAux.gt_of_mem_lb h this
-        · apply List.sortedLT_iff_isChain.mp
-          exact rih.mp (IsBST_of_IsBSTAux _ _ _ h)
-      · intro h
-        sorry
-        rw [←List.sortedLT_iff_isChain] at h
-        simp [IsBSTAux]
+    simp only [Option.elim_some, toKeyList_node, List.append_assoc, List.cons_append,
+      List.nil_append, List.mem_append, List.mem_cons]
+    rw [List.sortedLT_append_cons']
+    simp only [and_assoc]
     constructor
-    · intro h
-      simp
-      apply List.isChain_split.mpr; constructor
-      · apply List.isChain_append.mpr; constructor
-        · apply List.sortedLT_iff_isChain.mp
-          exact lih.mp (IsBST_left_of_IsBST l v r h)
-        · constructor
-          · simp
-          · intro x hx y hy
-            simp at hy
-            rw [←hy]
-            have := List.mem_of_getLast? hx
-            apply mem_iff_mem_toKeyList.mpr at this
-            exact lt_of_IsBST_left l v r h this
-      · simp [List.isChain_cons]; constructor
-        · intro y hy
-          have := List.mem_of_head? hy
-          apply mem_iff_mem_toKeyList.mpr at this
-          exact gt_of_IsBST_right l v r h this
-        · apply List.sortedLT_iff_isChain.mp
-          exact rih.mp (IsBST_right_of_IsBST l v r h)
-    · simp
+    · intro h; rcases h with ⟨hlbv, hubv, _, hlbl, hlv, _, hrv, hubr⟩
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> try assumption
+      · cases lb with
+        | none => simp
+        | some b =>
+          simp_all only [Option.elim_some]; intro x hx; rcases hx with (hxl | hxv | hxr)
+          · exact lt_of_lt_of_eq (hlbl _ hxl) rfl
+          · exact lt_of_lt_of_eq hlbv (symm hxv)
+          · exact lt_trans hlbv (hrv _ hxr)
+      · cases ub with
+        | none => simp
+        | some b =>
+          simp_all only [Option.elim_some]; intro x hx; rcases hx with (hxl | hxv | hxr)
+          · exact lt_trans (hlv _ hxl) hubv
+          · exact lt_of_eq_of_lt hxv hubv
+          · exact lt_of_lt_of_eq (hubr _ hxr) rfl
+    · intro h; rcases h with ⟨_, _, _, _, _, _⟩
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> try assumption
+      · cases lb <;> simp_all only [Option.elim_some, Option.elim_none]; grind only
+      · cases ub <;> simp_all only [Option.elim_some, Option.elim_none]; grind only
+      · cases lb <;> simp_all only [Option.elim_some, Option.elim_none]; grind only
+      · cases ub with
+        | none => simp_all
+        | some b => simp_all only [Option.elim_some]; grind only
 
-theorem IsBST_of_IsBST_eq_toKeyList [LinearOrder α] {s t : Tree α}
-    (hkeys : s.toKeyList = t.toKeyList) (hsbst : s.IsBST) : t.IsBST := by
-  apply IsBST_iff_toKeyList_sorted.mpr
-  rw [←hkeys]
-  exact IsBST_iff_toKeyList_sorted.mp hsbst
+theorem IsBST_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
+    t.IsBST ↔ t.toKeyList.SortedLT := by
+  rw [IsBST, IsBSTAux_iff_toKeyList_sorted]; simp
 
 end BSTMoreStuff
 

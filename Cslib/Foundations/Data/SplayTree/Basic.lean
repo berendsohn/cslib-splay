@@ -452,6 +452,7 @@ theorem descend_preserves_tree [LinearOrder α] (t : Tree α) (q : α) :
   have := descend_go_preserves_tree t q []
   simpa [descend] using this
 
+/-
 lemma descend_go_equal_subtree [LinearOrder α] (q : α) (t : Tree α) (hbst : t.IsBST)
     (acc acc' : List (Frame α)) :
     (descend.go q t acc).1 = (descend.go q t acc').1 := by
@@ -461,8 +462,8 @@ lemma descend_go_equal_subtree [LinearOrder α] (q : α) (t : Tree α) (hbst : t
     by_cases cq : q = v
     · simp [cq, descend.go]
     · simp only [descend.go, cq, ↓reduceIte]; split
-      · apply lih (IsBST_left_of_IsBST l v r hbst)
-      · apply rih (IsBST_right_of_IsBST l v r hbst)
+      · apply lih (IsBST_left_of_IsBST hbst)
+      · apply rih (IsBST_right_of_IsBST hbst)
 
 -- TODO: duplication!
 theorem descend_succeeds_of_contained [LinearOrder α] (t : Tree α) (q : α)
@@ -475,14 +476,14 @@ theorem descend_succeeds_of_contained [LinearOrder α] (t : Tree α) (q : α)
     · simp only [mem_node_iff, cq, false_or] at hq
       cases hq with
       | inl hql =>
-          have hlbst := IsBST_left_of_IsBST l v r hbst
+          have hlbst := IsBST_left_of_IsBST hbst
           simp only [descend, descend.go, cq, ↓reduceIte, lt_of_IsBST_left l v r q hbst hql, ne_eq];
           have : ∀ acc, (descend.go q l acc).1 = (descend.go q l []).1 := by
             intro acc; apply descend_go_equal_subtree; exact hlbst
           rw [this]
           exact lih hlbst hql
       | inr hqr =>
-          have hrbst := IsBST_right_of_IsBST l v r hbst
+          have hrbst := IsBST_right_of_IsBST hbst
           have : ¬(q < v) := by
             simp [gt_of_IsBST_right l v r q hbst hqr, le_of_lt]
           simp only [descend, descend.go, cq, ↓reduceIte, this, ne_eq];
@@ -490,6 +491,7 @@ theorem descend_succeeds_of_contained [LinearOrder α] (t : Tree α) (q : α)
             intro acc; apply descend_go_equal_subtree; exact hrbst
           rw [this]
           exact rih hrbst hqr
+-/
 
 end DescendLemmas
 
