@@ -219,7 +219,6 @@ def mirror : Tree α → Tree α
   rcases t with _ | ⟨k, l, (_ | ⟨rk, rl, rr⟩)⟩ <;>
     simp [rotateRight, rotateLeft, mirror]
 
--- TODO: The nodeCount stuff can probably be derived from the toKeyList stuff directly.
 @[simp] theorem nodeCount_rotateRight (t : Tree α) :
     (rotateRight t).nodeCount = t.nodeCount := by
   rcases t with _ | ⟨k, (_ | ⟨lk, ll, lr⟩), r⟩ <;>
@@ -644,6 +643,36 @@ private lemma IsBSTAux_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} {lb u
       · cases ub with
         | none => simp_all
         | some b => simp_all only [Option.elim_some]; grind only
+
+/- TODO: the following is much shorter, increases the build time significatnly; maybe some middle
+ground is possible:
+
+private lemma IsBSTAux_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} {lb ub : Option α} :
+    t.IsBSTAux lb ub ↔
+    t.toKeyList.SortedLT
+      ∧ lb.elim True (∀ x, x ∈ t.toKeyList → · < x)
+      ∧ ub.elim True (∀ x, x ∈ t.toKeyList → x < ·) := by
+  induction t generalizing lb ub with
+  | nil => simp [List.sortedLT_iff_isChain]; cases lb <;> cases ub <;> simp
+  | node v l r lih rih =>
+    simp only [IsBSTAux_node]
+    rw [lih, rih]
+    simp only [Option.elim_some, toKeyList_node, List.append_assoc, List.cons_append,
+      List.nil_append, List.mem_append, List.mem_cons]
+    rw [List.sortedLT_append_cons']
+    simp only [and_assoc]
+    constructor
+    · intro h; rcases h with ⟨hlbv, hubv, _, hlbl, hlv, _, hrv, hubr⟩
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> try assumption
+      all_goals cases lb <;> cases ub <;>
+      simp_all only [true_and, Option.elim_none, Option.elim_some]
+      all_goals grind only
+    · intro h; rcases h with ⟨_, _, _, _, _, _⟩
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> try assumption
+      all_goals cases lb <;> cases ub <;>
+      simp_all only [Option.elim_some, Option.elim_none, true_and, implies_true, and_self]
+      all_goals grind only
+-/
 
 theorem IsBST_iff_toKeyList_sorted [LinearOrder α] {t : Tree α} :
     t.IsBST ↔ t.toKeyList.SortedLT := by

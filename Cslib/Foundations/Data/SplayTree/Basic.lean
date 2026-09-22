@@ -334,9 +334,7 @@ theorem toKeyList_Frame_attach_right (c : Tree α) (f : Frame α) (h : f.dir = D
   unfold Frame.attach
   simp [h]
 
--- TODO: Move?
 /-- An explicit definition for (reassemble ...).toKeyList, proven to be equivalent below. -/
-@[simp]
 def reassembleKeyList (clist : List α) (path : List (Frame α)) : List α :=
   match path with
     | .nil => clist
@@ -347,7 +345,7 @@ def reassembleKeyList (clist : List α) (path : List (Frame α)) : List α :=
 lemma toKeyList_reassemble (c : Tree α) (path : List (Frame α)) :
   (reassemble c path).toKeyList = reassembleKeyList c.toKeyList path := by
   induction path generalizing c with
-  | nil => simp
+  | nil => simp [reassembleKeyList]
   | cons f rest =>
     expose_names
     simp only [reassemble_cons, reassembleKeyList, List.append_assoc, List.cons_append,
@@ -452,46 +450,6 @@ theorem descend_preserves_tree [LinearOrder α] (t : Tree α) (q : α) :
   have := descend_go_preserves_tree t q []
   simpa [descend] using this
 
-/-
-lemma descend_go_equal_subtree [LinearOrder α] (q : α) (t : Tree α) (hbst : t.IsBST)
-    (acc acc' : List (Frame α)) :
-    (descend.go q t acc).1 = (descend.go q t acc').1 := by
-  induction t generalizing acc acc' with
-  | nil => simp [descend.go]
-  | node v l r lih rih =>
-    by_cases cq : q = v
-    · simp [cq, descend.go]
-    · simp only [descend.go, cq, ↓reduceIte]; split
-      · apply lih (IsBST_left_of_IsBST hbst)
-      · apply rih (IsBST_right_of_IsBST hbst)
-
--- TODO: duplication!
-theorem descend_succeeds_of_contained [LinearOrder α] (t : Tree α) (q : α)
-  (hbst : t.IsBST) (hq : q ∈ t) : (descend t q).1 ≠ nil := by
-  induction t with
-  | nil => contradiction
-  | node v l r lih rih =>
-    by_cases cq : q = v
-    · rw [←cq]; simp [descend, descend.go]
-    · simp only [mem_node_iff, cq, false_or] at hq
-      cases hq with
-      | inl hql =>
-          have hlbst := IsBST_left_of_IsBST hbst
-          simp only [descend, descend.go, cq, ↓reduceIte, lt_of_IsBST_left l v r q hbst hql, ne_eq];
-          have : ∀ acc, (descend.go q l acc).1 = (descend.go q l []).1 := by
-            intro acc; apply descend_go_equal_subtree; exact hlbst
-          rw [this]
-          exact lih hlbst hql
-      | inr hqr =>
-          have hrbst := IsBST_right_of_IsBST hbst
-          have : ¬(q < v) := by
-            simp [gt_of_IsBST_right l v r q hbst hqr, le_of_lt]
-          simp only [descend, descend.go, cq, ↓reduceIte, this, ne_eq];
-          have : ∀ acc, (descend.go q r acc).1 = (descend.go q r []).1 := by
-            intro acc; apply descend_go_equal_subtree; exact hrbst
-          rw [this]
-          exact rih hrbst hqr
--/
 
 end DescendLemmas
 

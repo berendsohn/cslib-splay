@@ -8,7 +8,7 @@ Authors: Anton Kovsharov, Antoine du Fresne von Hohenesche,
 module
 
 public import Cslib.Foundations.Data.SplayTree.Basic
-public import Cslib.Foundations.Data.SplayTree.Complexity -- TODO: Better move some lemmas
+public import Cslib.Foundations.Data.SplayTree.Complexity
 
 /-!
 # Splay Tree Correctness
@@ -28,18 +28,6 @@ open Tree
 
 /-! ### `toKeyList` Preservation -/
 section ToKeyListPreservation
-
-@[simp] theorem toKeyList_rotateRight (t : Tree α) :
-    (rotateRight t).toKeyList = t.toKeyList := by
-  cases t; · rfl
-  rename_i k l r
-  cases l <;> simp [rotateRight, toKeyList]
-
-@[simp] theorem toKeyList_rotateLeft (t : Tree α) :
-    (rotateLeft t).toKeyList = t.toKeyList := by
-  cases t; · rfl
-  rename_i k l r
-  cases r <;> simp [rotateLeft, toKeyList]
 
 @[simp] theorem toKeyList_bringUp (d : Dir) (t : Tree α) :
     (d.bringUp t).toKeyList = t.toKeyList := by
