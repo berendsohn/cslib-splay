@@ -1,10 +1,6 @@
 module
 
-public import Cslib.Foundations.Data.SplayTree.Basic
-public import Cslib.Foundations.Data.SplayTree.Complexity
-public import Cslib.Foundations.Data.SplayTree.Correctness
-public import Mathlib.Data.Real.Basic
-public import Mathlib.Analysis.SpecialFunctions.Log.Base
+public import Cslib.Foundations.Data.SplayTree.Correctness -- Required for some lemmas
 
 /-!
 # Weighted Bounds of Splay Trees
@@ -317,7 +313,6 @@ private theorem φ_zigzig_left (hw : FnLbOne w)
     let s := node c (node b x t3) t4 -- The initial tree
     let s' := rotateRight (rotateRight s) -- The resulting tree
     φ w s' - φ w s + 2 ≤ 3 * (rank w s' - rank w x) := by
-  -- TODO: Avoid repeating definitions?
   let x := node a t1 t2
   let s := node c (node b x t3) t4
   let s' := rotateRight (rotateRight s)
@@ -368,7 +363,6 @@ private theorem φ_zigzag_left (hw : FnLbOne w)
     let s := node a t1 (node c x t4) -- The initial tree
     let s' := rotateLeft (applyChild .R rotateRight s) -- The resulting tree
     φ w s' - φ w s + 2 ≤ 3 * (rank w s' - rank w x) := by
-  -- TODO: Avoid repeating definitions?
   let x := node b t2 t3 -- The node we're rotating
   let s := node a t1 (node c x t4) -- The initial tree
   let s' := rotateLeft (applyChild .R rotateRight s) -- The resulting tree

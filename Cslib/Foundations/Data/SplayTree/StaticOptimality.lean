@@ -1,12 +1,6 @@
 module
 
-public import Cslib.Foundations.Data.BinaryTree
-public import Cslib.Foundations.Data.SplayTree.Basic
-public import Cslib.Foundations.Data.SplayTree.Complexity
-public import Cslib.Foundations.Data.SplayTree.Correctness
 public import Cslib.Foundations.Data.SplayTree.Weighted
-public import Mathlib.Data.Real.Basic
-public import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
 # Static optimality of Splay Trees
@@ -110,7 +104,6 @@ private lemma staticWeight_size_right [LinearOrder α]
   exact this r.toKeyList (by rfl)
 
 
--- TODO: Lots of annoying casts and calculations
 private lemma staticWeight_size_self_ub [LinearOrder α] (s : Tree α) (hbst : s.IsBST) :
     size (staticWeight s) s ≤ 3 ^ s.nodeCount := by
   induction s with
@@ -132,7 +125,6 @@ private lemma staticWeight_size_self_ub [LinearOrder α] (s : Tree α) (hbst : s
           apply (Real.rpow_right_inj (by simp) (by simp)).mpr
           linarith
     have hr : size (staticWeight (l △[v] r)) r ≤ 3^(s.nodeCount - 1 : ℝ) := by
-      -- TODO: Almost exact duplication :(
       calc size (staticWeight (l △[v] r)) r
           = 3^(s.nodeCount - r.nodeCount-1 : ℝ) * size (staticWeight r) r := by
             exact staticWeight_size_right hbst
