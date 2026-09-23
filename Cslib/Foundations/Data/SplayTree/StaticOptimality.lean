@@ -201,7 +201,7 @@ private lemma splay_tree_static_optimality' [LinearOrder α] (m : ℕ)
     let n := s.nodeCount
     splay.sequenceCost init X ≤ m + (Real.logb 2 3) * (3 * staticCost s X + n ^ 2) := by
   by_cases hinit : init = nil
-  · have : s = nil := by apply toKeyList_of_empty; simp [hkeys, hinit]
+  · have : s = nil := by apply nil_of_toKeyList_empty; simp [hkeys, hinit]
     have hsnc : s.nodeCount = 0 := by simp [this]
     cases m with
     | zero => simp[hsnc]

@@ -184,13 +184,6 @@ section SplayUpInduction
 @[simp] theorem splayUp_singleton (c : Tree α) (f : Frame α) :
     splayUp c [f] = f.dir.bringUp (f.attach c) := rfl
 
-@[simp] theorem splayUp_niltree (f1 f2 : Frame α) (path : List (Frame α)) :
-    let s := f2.attach (f1.attach nil)
-    let s' := f2.dir.bringUp s
-    splayUp nil (f1 :: f2 :: path) = splayUp s' path := by
-  simp [splayUp, Frame.attach]; cases f1.dir <;> cases f2.dir <;>
-  all_goals simp [Dir.bringUp, applyChild, rotateLeft, rotateRight]
-
 theorem splayUp_cons_cons (c : Tree α) (f1 f2 : Frame α) (rest : List (Frame α)) :
     splayUp c (f1 :: f2 :: rest) =
       splayUp

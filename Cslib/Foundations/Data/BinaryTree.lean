@@ -45,8 +45,6 @@ def nodeCount : Tree α → ℕ
 @[simp] lemma nodeCount_node (l : Tree α) (k : α) (r : Tree α) :
     (l △[k] r).nodeCount = 1 + l.nodeCount + r.nodeCount := rfl
 
-lemma nodeCount_nonneg (t : Tree α) : nodeCount t ≥ 0 := by cases t; all_goals simp
-
 /-- In-order traversal as a list of keys. -/
 def toKeyList : Tree α → List α
   | .nil => []
@@ -57,13 +55,12 @@ def toKeyList : Tree α → List α
 @[simp] lemma toKeyList_node (l : Tree α) (k : α) (r : Tree α) :
     (l △[k] r).toKeyList = l.toKeyList ++ [k] ++ r.toKeyList := rfl
 
-lemma toKeyList_of_empty {t : Tree α} (h : toKeyList t = []) : (t = nil) := by
+lemma nil_of_toKeyList_empty {t : Tree α} (h : toKeyList t = []) : t = nil := by
   cases t
   · simp
   · simp [List.append_assoc] at h
 
-lemma nodeCount_from_toKeyList (t : Tree α) :
-    (t.nodeCount = t.toKeyList.length) := by
+lemma nodeCount_from_toKeyList (t : Tree α) : (t.nodeCount = t.toKeyList.length) := by
   induction t with
   | nil => simp
   | node v l r lih rih => simp [lih, rih]; linarith

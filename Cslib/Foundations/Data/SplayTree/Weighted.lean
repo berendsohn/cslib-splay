@@ -204,7 +204,7 @@ lemma rank_eq_of_toKeyList_eq {s t : Tree α}
   | nil =>
     simp only
     simp only [toKeyList, List.nil_eq] at h
-    rw [size_from_toKeyList, h, List.map_nil, List.sum_nil, toKeyList_of_empty h]
+    rw [size_from_toKeyList, h, List.map_nil, List.sum_nil, nil_of_toKeyList_empty h]
   | node v l r =>
     have : t.toKeyList ≠ [] := by rw [←h]; simp
     have : t ≠ nil := by contrapose this; rw [this]; exact toKeyList_empty
