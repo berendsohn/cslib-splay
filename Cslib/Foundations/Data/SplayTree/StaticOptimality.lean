@@ -54,7 +54,7 @@ private lemma staticWeight_left [LinearOrder α] (v : α) (l r : Tree α) (q : �
   simp [searchPathLen_left v l r q hqv]; linarith
 
 private lemma staticWeight_size_left [LinearOrder α]
-    (v : α) (l r : Tree α) (hbst : (node v l r).IsBST) :
+    {v : α} {l r : Tree α} (hbst : (node v l r).IsBST) :
     let s := node v l r
     size (staticWeight s) l = 3^(s.nodeCount - l.nodeCount-1 : ℝ) * size (staticWeight l) l := by
   simp only [size_from_toKeyList]
@@ -74,9 +74,7 @@ private lemma staticWeight_size_left [LinearOrder α]
       simp [this, staticWeight_left v l r x hxv]; linarith
   exact this l.toKeyList (by rfl)
 
-/-
-TODO: Lots of duplicated code. Maybe some mirror-IsBST lemma with reverse linear order could help?
--/
+
 private lemma searchPathLen_right [LinearOrder α] (v : α) (l r : Tree α) (q : α) (hqv : v < q) :
     searchPathLen (node v l r) q = 1 + searchPathLen r q := by
   simp only [searchPathLen, hqv, ↓reduceIte, ite_eq_right_iff, Nat.add_left_cancel_iff]
@@ -91,7 +89,7 @@ private lemma staticWeight_right [LinearOrder α] (v : α) (l r : Tree α) (q : 
   simp [searchPathLen_right v l r q hqv]; linarith
 
 private lemma staticWeight_size_right [LinearOrder α]
-    (v : α) (l r : Tree α) (hbst : (node v l r).IsBST) :
+    {v : α} {l r : Tree α} (hbst : (node v l r).IsBST) :
     let s := node v l r
     size (staticWeight s) r = 3^(s.nodeCount - r.nodeCount-1 : ℝ) * size (staticWeight r) r := by
   simp only [size_from_toKeyList]
@@ -125,7 +123,7 @@ private lemma staticWeight_size_self_ub [LinearOrder α] (s : Tree α) (hbst : s
     have hl : size (staticWeight (l △[v] r)) l ≤ 3^(s.nodeCount - 1 : ℝ) := by
       calc size (staticWeight (l △[v] r)) l
           = 3^(s.nodeCount - l.nodeCount-1 : ℝ) * size (staticWeight l) l := by
-            exact staticWeight_size_left v l r hbst
+            exact staticWeight_size_left hbst
         _ ≤ 3^(s.nodeCount - l.nodeCount-1 : ℝ) * 3 ^ l.nodeCount := by
             gcongr; apply lih; exact IsBST_left_of_IsBST hbst
         _ = 3^(s.nodeCount - 1 : ℝ) := by
@@ -137,7 +135,7 @@ private lemma staticWeight_size_self_ub [LinearOrder α] (s : Tree α) (hbst : s
       -- TODO: Almost exact duplication :(
       calc size (staticWeight (l △[v] r)) r
           = 3^(s.nodeCount - r.nodeCount-1 : ℝ) * size (staticWeight r) r := by
-            exact staticWeight_size_right v l r hbst
+            exact staticWeight_size_right hbst
         _ ≤ 3^(s.nodeCount - r.nodeCount-1 : ℝ) * 3 ^ r.nodeCount := by
             gcongr; apply rih; exact IsBST_right_of_IsBST hbst
         _ = 3^(s.nodeCount - 1 : ℝ) := by

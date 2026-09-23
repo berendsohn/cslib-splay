@@ -179,7 +179,6 @@ end Definitions
 /-! ### Unfolding and Induction Lemmas for `splayUp` -/
 section SplayUpInduction
 
--- TODO: Should this be called splayUp_empty?
 @[simp] theorem splayUp_nil (c : Tree α) : splayUp c [] = c := rfl
 
 @[simp] theorem splayUp_singleton (c : Tree α) (f : Frame α) :
@@ -319,7 +318,6 @@ theorem nodeCount_splay [LinearOrder α] (t : Tree α) (q : α) :
 end NodeCount
 
 /-! ### ToKeyList and Reassemble Invariants -/
--- TODO: Mostly copies of nodeCount stuff, can probably replace it mostly
 section ToKeyListReassemble
 
 @[simp]
